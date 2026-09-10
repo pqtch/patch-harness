@@ -43,6 +43,15 @@
             "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/pretooluse/readonly_guard.sh\"; [ -f \"$H\" ] || exit 0; exec bash \"$H\""
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/pretooluse/commit_scope_guard.sh\"; [ -f \"$H\" ] || exit 0; exec bash \"$H\""
+          }
+        ]
       }
     ]
   },

@@ -45,8 +45,10 @@ probe commit's object. Same shape, different hands, two weeks later.
 
 **What it bought.** The pipeline commits with an explicit pathspec. And the lesson that a
 rule in a doc does not stop the person who wrote the doc: the second occurrence was by
-someone who had the first one in context. The honest guard would be a hook that refuses a
-pathspec-less `git commit` when the index holds more than the caller named — not written yet.
+someone who had the first one in context. So, the same day: `commit_scope_guard.sh` — a
+PreToolUse hook that refuses `git add <paths> && git commit` when the index already holds
+files outside those paths, and lists them. It passes `git add -A`, a bare `git commit`, and a
+commit with a pathspec; six cases were planted before it was registered.
 
 ## 4. A session launched outside the tree wrote into the ledger with `git status` clean — 2026-09-09
 **What happened.** A record file outside git (an append-only ledger in a gitignored

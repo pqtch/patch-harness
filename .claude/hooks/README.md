@@ -5,8 +5,9 @@
 | `sessionstart/thread/thread_delivery.py` | `SessionStart` | finds `thread.<agent>.md` for the booting specialist, injects it, deletes it |
 | `pretooluse/gitlink_guard.sh` | `PreToolUse` (Bash) | refuses a `git commit` that would stage a gitlink (mode 160000) — layer 2; layer 1 is the `.git/hooks/pre-commit` that `setup.sh` installs |
 | `pretooluse/readonly_guard.sh` | `PreToolUse` (Bash) | refuses a Bash command that would mutate a `p.*` file — the half of rule 4 the `Edit(p.*)` permission cannot see |
+| `pretooluse/commit_scope_guard.sh` | `PreToolUse` (Bash) | refuses `git add <paths> && git commit` when the index already holds files outside those paths — `docs/incidents.md` #3, which happened twice |
 
-All three are registered in `~/workspace/.claude/settings.json` and resolve through
+All four are registered in `~/workspace/.claude/settings.json` and resolve through
 `$CLAUDE_PROJECT_DIR`, so nothing here carries an absolute path.
 
 **Few hooks, deliberately.** Hooks are answers: build the substrate, run it, and let friction

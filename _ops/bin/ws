@@ -14,9 +14,9 @@
 # skills, commands, settings, and the SessionStart thread hook. This script only chooses a
 # directory and an identity.
 #
-# NOTE — the model pin. A specialist launches on WS_MODEL, default opus: a persistent
-# identity doing real work should not run on whatever the user-scope default happens to be.
-# Override per launch with WS_MODEL=<model>. Revisit deliberately, not by drift.
+# NOTE — no model pin. `ws <specialist>` is exactly `cd <root> && claude --agent <specialist>`;
+# the session runs on the harness default, same as a blank `claude`. WS_MODEL=<model> adds a
+# --model flag for one launch when wanted.
 #
 # NOTE — no identity env var, and this is not a style choice. MEASURED 2026-08-16, Claude
 # Code 2.1.233: the SessionStart hook of a `--agent <name>` session already receives the name
@@ -42,4 +42,4 @@ DEF="$ROOT/.claude/agents/$NAME.md"
 [ -f "$DEF" ] || { echo "ws: no such specialist def: $DEF" >&2; exit 1; }
 
 cd "$ROOT"
-exec claude --agent "$NAME" --model "${WS_MODEL:-opus}" "$@"
+exec claude --agent "$NAME" ${WS_MODEL:+--model "$WS_MODEL"} "$@"
