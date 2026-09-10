@@ -1,0 +1,1 @@
+../../../../../.claude/templates/STICKY.tmp.md

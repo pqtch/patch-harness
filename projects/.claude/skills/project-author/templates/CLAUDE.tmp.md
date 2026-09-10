@@ -1,0 +1,1 @@
+../../../../../.claude/templates/CLAUDE.tmp.md
