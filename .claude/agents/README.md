@@ -32,7 +32,7 @@ on demand. Mold: `.claude/templates/SPECIALIST.tmp.md` (a *who*) — workers use
   capability shaping.
 - **`memory: user`** — required, and it is not the obvious choice. It resolves to
   `<config dir>/agent-memory/<specialist>/`, and `setup.sh` relocates the config dir into
-  the repo (`CLAUDE_CONFIG_DIR=~/workspace/.claude-config`), so the lane is an ABSOLUTE path
+  the repo (`CLAUDE_CONFIG_DIR=~/workspace/.claude-config` <!-- may-be-absent -->), so the lane is an ABSOLUTE path
   that still lands in the tracked tree. **`memory: project` resolves against the session's
   live cwd at spawn time, not the launch root** — measured 2026-09-09, Claude Code 2.1.267 —
   so a specialist spawned after the main session `cd`s gets an empty lane, silently. Full

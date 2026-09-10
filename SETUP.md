@@ -1,6 +1,6 @@
 # SETUP
 
-Small: one clone, one script, one restart.
+Small: one clone, one script, one restart, one login.
 
 ## Prerequisites
 - **Claude Code** — the harness this tree is built for. Version-sensitive facts in the docs
@@ -13,11 +13,13 @@ Small: one clone, one script, one restart.
 ```sh
 git clone <this repository> ~/workspace
 cd ~/workspace
-_ops/bin/setup.sh
+bash _ops/bin/setup.sh
 ```
-`~/workspace` is the name every path in the tree uses. Clone it somewhere else if you like,
-then `grep -rl '~/workspace' . | xargs sed -i 's#~/workspace#~/elsewhere#g'` — it is a name,
-not a mechanism.
+`~/workspace` is the name every path in the tree uses. Clone it somewhere else if you like —
+it is a name, not a mechanism — then rewrite the name everywhere, substituting your path:
+```sh
+grep -rl '~/workspace' --exclude-dir=.git . | xargs sed -i 's#~/workspace#~/YOUR-PATH#g'   # GNU sed; on macOS: sed -i ''
+```
 
 `setup.sh` is idempotent and does three things, saying which as it goes:
 1. Installs `prepare-commit-msg` — every commit made from inside a session carries a
@@ -26,7 +28,8 @@ not a mechanism.
    `pre-commit` you wrote is already there, it is kept and chained**, not overwritten.
 3. **Asks** whether to relocate the Claude Code config dir into this repo. Say yes. What
    that does, exactly:
-   - appends two lines to `~/.bashrc` setting `CLAUDE_CONFIG_DIR=~/workspace/.claude-config`
+   - appends two lines to `~/.bashrc` setting `CLAUDE_CONFIG_DIR=~/workspace/.claude-config` <!-- may-be-absent -->
+     (zsh users: copy those two lines into `~/.zshrc`; the script only knows bash)
    - creates `.claude-config/agent-memory -> ../.claude/agent-memory`
    - copies your existing `~/.claude` **config only** (settings, agents, skills, commands) —
      never credentials, never other projects' transcripts
@@ -37,13 +40,16 @@ not a mechanism.
    Not relocated, it is `~/.claude/agent-memory/`, outside the repo, and specialist memory
    silently stops travelling with the tree.
 
-Then **restart your shell**, `cd ~/workspace`, and:
+Then open a new terminal (or `exec bash`), and:
 ```sh
-claude          # or: _ops/bin/ws — the launcher; put _ops/bin on PATH
-/login          # once per machine; credentials are gitignored on purpose
+echo 'export PATH="$HOME/workspace/_ops/bin:$PATH"' >> ~/.bashrc && exec bash   # optional: puts `ws` on PATH
+cd ~/workspace
+claude          # or: ws
+/login          # once per machine — credentials are gitignored on purpose, so they never travel with the repo
 ```
 
-To launch as a specialist: `ws center`, `ws researcher`, `ws analyst`.
+`ws` is the launcher: `ws` alone is a blank session at the root; `ws center`, `ws researcher`,
+`ws analyst` launch as that specialist. Without the PATH line, write `_ops/bin/ws`.
 
 ## What ships empty, on purpose
 - `projects/`, `sketch/` — indices only. The first project is made with the `project-author`
@@ -63,16 +69,23 @@ words (`center`, `researcher`, `analyst`) are the dispatch keys and they stay.
 
 ## Optional: the leak guard
 If you ever extract something public from this workspace, `_ops/bin/check-leak` refuses
-commits that carry your private words into it. It reads a gitignored wordlist at
-`_ops/private/denylist.txt` (format in the script header) and is not installed by `setup.sh`
-— there is nothing to guard until you have a public repo. Install it as that repo's
-`pre-commit`, then **test it by planting a known leak** before trusting it.
+commits that carry your private words into it. It is not installed by `setup.sh` — there is
+nothing to guard until you have a public repo. When you do:
+```sh
+mkdir -p _ops/private && printf 'CS:\\bYourName\\b:the owner by name\n' > _ops/private/denylist.txt   # one pattern:reason per line; gitignored
+printf '#!/usr/bin/env bash\nexec ~/workspace/_ops/bin/check-leak --repo "$(git rev-parse --show-toplevel)"\n' > /path/to/public-repo/.git/hooks/pre-commit
+chmod +x /path/to/public-repo/.git/hooks/pre-commit
+```
+Then **plant a known leak** — stage a file containing your name in the public repo and
+confirm the commit is refused — before trusting it. A guard that has only ever passed has
+not been tested.
 
 ## Verify
+From inside a session (so the trailer hook has a session id to stamp):
 ```sh
 _ops/bin/check-pointers      # 0 dead pointers
 _ops/bin/check-types         # type: vocabularies OK
-git log -1 --format='%(trailers:key=Session)'   # after a commit from inside a session
+git add .claude-config && git commit -m 'setup' && git log -1 --format='%(trailers:key=Session)'   # prints Session: <id>
 ```
 If a specialist's lane comes back empty, or an `agent-memory/` directory appears anywhere that
 is not `.claude/agent-memory/`, the relocation did not take: check `echo $CLAUDE_CONFIG_DIR`

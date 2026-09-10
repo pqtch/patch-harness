@@ -69,8 +69,7 @@ project folder already says?**
 - Good: *"In the data-pipeline sketch, the owner wants the ingest layer left untouched until
   the schema is ruled — the last rewrite was thrown away for going first."* The project
   folder holds the schema; the memory holds the working stance.
-- Bad: *"The data-pipeline sketch is at `~/workspace/sketch/data-pipeline/`."* The index
-  already says so.
+- Bad: *"The data-pipeline sketch lives under `sketch/`."* The index already says so.
 
 **`reference` — would I go looking for this file regularly if I did not know it existed?**
 - Good: a pointer, with one line on why, to a file read often *outside* the scope of a

@@ -16,7 +16,7 @@ that name changes everywhere in one `sed` — it is a name, not a mechanism.
 | `~/workspace/_ops/` | bin, scripts, docs, journal, plans, archive (`~/workspace/_ops/INDEX.md`) |
 | `~/workspace/.claude/agents/` | agent defs — specialists and workers |
 | `~/workspace/.claude/agent-memory/` | specialist memory, one dir per specialist |
-| `~/workspace/.claude-config/` | the relocated Claude Code config dir — transcripts, history, tasks. Carries continuity across machines; secrets and machine-local state are gitignored |
+| `~/workspace/.claude-config/` | the relocated Claude Code config dir — transcripts, history, tasks. Carries continuity across machines; secrets and machine-local state are gitignored. Created by `setup.sh` <!-- may-be-absent --> |
 | `~/workspace/.claude/skills/` | ROOT skills — available to every session |
 | `~/workspace/.claude/templates/` | canonical formats for new files |
 | `~/workspace/.claude/commands/` | slash commands |
