@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# check-leak — refuses a commit into a PUBLIC repo that carries your PRIVATE content.
+#
+# The situation it exists for: a workspace like this one is private, and one day you extract
+# something from it that is meant for strangers — a boilerplate, a library, a write-up. The
+# extracted repo should carry your MECHANISM (skills, rules, hooks, agent defs) and none of
+# your CONTENT (your name, your projects, your people, your workspace's own vocabulary). A
+# rule saying so is enforced by a reader who might not read; a grep run at the end is run
+# after every file is already written. This runs on the staged delta of every commit into
+# the extracted repo, so a leak is refused before it enters the history at all.
+#
+# THE WORDLIST IS ITSELF CONTENT. It is a list of your names, projects and private words, so
+# it lives in a GITIGNORED file and never in the repo it guards:
+#
+#     <workspace>/_ops/private/denylist.txt
+#
+# One entry per line, `pattern:reason`. The pattern is an extended regex (use \b word
+# boundaries — `\bsable\b` must not fire on "disable"). A `CS:` prefix makes that one entry
+# case-SENSITIVE; use it for a name that is also an ordinary word. Blank lines and `#`
+# comments are ignored. Example:
+#
+#     CS:\bPat\b:the owner by name; the boilerplate has no owner
+#     \bmyworkspace\b:the workspace name — the single biggest tell
+#     \bcns-lab\b|\bdrone-services\b:a real project
+#
+# DELTA, NOT STATE: the default scan reads `git diff --cached`, the lines this commit ADDS,
+# each prefixed with its filename so a leaking FILENAME is caught too. `--all` rescans every
+# tracked file, for an audit rather than a gate — run it once over a finished extraction.
+#
+# BLIND SPOT, measured: a pure `git mv` of an unchanged file adds NO lines, so a leaking
+# filename introduced by rename passes the delta scan. `--all` catches it.
+#
+# FAILS OPEN — exit 0 on any internal error, INCLUDING a missing denylist. A guard that dies
+# of its own machinery has done more damage than the thing it guarded against, and the
+# extracted repo must stay committable for anyone who clones it without your workspace.
+#
+# Install: as the extracted repo's `.git/hooks/pre-commit` (or chain it from one):
+#     exec /path/to/workspace/_ops/bin/check-leak --repo "$(git rev-parse --show-toplevel)"
+# Not installed by setup.sh — this workspace is the private side, and there is nothing to
+# guard until you have a public one.
+#
+# Usage:
+#   check-leak [--repo DIR] [--list FILE] [--all] [--quiet]
+# Exit: 0 clean · 1 leak found (blocks a commit) · 0 on any internal error (fails OPEN).
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+REPO="$PWD"
+LIST="$ROOT/_ops/private/denylist.txt"
+MODE=delta
+QUIET=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo) REPO="${2:-}"; shift 2 ;;
+    --list) LIST="${2:-}"; shift 2 ;;
+    --all)  MODE=all; shift ;;
+    --quiet) QUIET=1; shift ;;
+    *) shift ;;
+  esac
+done
+
+fail() { [ "$QUIET" -eq 1 ] || printf '%s\n' "$*" >&2; }
+
+[ -r "$LIST" ] || { fail "check-leak: no denylist at $LIST — skipping (fails open). Write one; format in the script header."; exit 0; }
+cd "$REPO" 2>/dev/null || { fail "check-leak: no repo at $REPO — skipping (fails open)"; exit 0; }
+
+# What to scan. In delta mode, added lines only, prefixed with their file.
+if [ "$MODE" = all ]; then
+  BODY="$(git grep -n -I -e '' -- . 2>/dev/null)" || BODY=""
+else
+  EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+  BASE="$(git rev-parse --verify -q HEAD || echo $EMPTY_TREE)"
+  BODY="$(git diff --cached -U0 --no-color "$BASE" 2>/dev/null | awk '
+    /^\+\+\+ b\// { file = substr($0, 7); next }
+    /^\+/ && !/^\+\+\+/ { print file ": " substr($0, 2) }
+  ')" || BODY=""
+fi
+
+[ -n "$BODY" ] || { [ "$QUIET" -eq 1 ] || echo "check-leak: nothing to scan — clean."; exit 0; }
+
+HITS=0
+while IFS= read -r entry || [ -n "$entry" ]; do
+  case "$entry" in ''|'#'*) continue ;; esac
+  # The CS: prefix must come off BEFORE the pattern:reason split — `${entry%%:*}` cuts at the
+  # FIRST colon, and a `CS:`-prefixed entry would otherwise split as pattern="CS". That bug
+  # shipped once and reported clean; it was caught by a test asserting a KNOWN leak is still
+  # refused. A guard is only as good as its last positive test.
+  icase="-i"
+  case "$entry" in CS:*) entry="${entry#CS:}"; icase="" ;; esac
+  pattern="${entry%%:*}"
+  reason="${entry#*:}"
+  [ -n "$pattern" ] || continue
+  found="$(printf '%s\n' "$BODY" | grep $icase -E -- "$pattern" 2>/dev/null | head -5)"
+  [ -n "$found" ] || continue
+  if [ "$HITS" -eq 0 ]; then
+    fail "check-leak: REFUSING — private content in $REPO."
+    fail ""
+  fi
+  HITS=$((HITS + 1))
+  fail "  /$pattern/ — $reason"
+  printf '%s\n' "$found" | sed 's/^/      /' >&2
+  fail ""
+done < "$LIST"
+
+if [ "$HITS" -gt 0 ]; then
+  fail "  $HITS pattern(s) hit. The rule: an extracted repo ships MECHANISM, never content."
+  fail "  If a hit is a genuine false positive, reword it — do not widen the list."
+  fail "  Wordlist: $LIST"
+  exit 1
+fi
+
+[ "$QUIET" -eq 1 ] || echo "check-leak: clean (${MODE})."
+exit 0

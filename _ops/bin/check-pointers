@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+# check-pointers — the pointer check. Walks the workspace's markdown, extracts every absolute
+# workspace path asserted in file text (`~/workspace/...` or the resolved root), and stats
+# each. A pointer to a missing file OR to a 0-byte file counts dead.
+#
+# ── ABSENT BY DESIGN ─────────────────────────────────────────────────────────────────
+# A line carrying the marker
+#
+#     <!-- may-be-absent -->
+#
+# declares that its pointers MAY legitimately not exist: an uncloned `<name>-repo/`, a
+# craft pool that is empty on purpose, a separate repo living inside the tree. Those
+# pointers are still stat'd, still counted, and still REPORTED — as a second, quiet tally —
+# but they do not enter the dead count.
+#
+# WHY, and what it costs: before this marker existed, the check printed the same twelve
+# unactionable lines on every single commit and had never once caught a real error. A check
+# that always fails trains its reader to stop reading it, which is worse than no check — the
+# day a real dead pointer appears it lands in a list nobody opens. The marker is a RULE, not
+# a hook: nothing forces anyone to write it, and a forgotten marker reads as a genuine
+# failure. That direction of error is the correct one — a false alarm is recoverable, a
+# suppressed real one is not. Suppression is per-LINE and never per-file, so a marked table
+# row does not excuse the rest of its file.
+#
+# NEVER fails its caller: this is a warning, not a gate. Always exits 0 (a check that dies of
+# its own logging has done more damage than the thing it guarded against — see
+# docs/harness-hooks.md, failure behaviour).
+#
+# Usage: check-pointers [DIR]   — DIR defaults to this workspace, from the script's location.
+set -u
+
+ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}"
+ROOT="$(cd "$ROOT" && pwd -P)"
+# The two spellings of a workspace path that count as an assertion: the tilde form every doc
+# uses, and the resolved absolute form.
+TILDE_ROOT="~/${ROOT#"$HOME"/}"
+
+main() {
+  cd "$ROOT" 2>/dev/null || return 0
+
+  # ── candidate files ──────────────────────────────────────────────────────────────
+  # Exclude .git, node_modules, and any directory ending in "-repo" (nested checkouts —
+  # projects/<name>/<name>-repo — which are their own repos, not this workspace's markdown).
+  local files
+  files="$(find "$ROOT" -mindepth 1 \
+    \( -type d \( -name .git -o -name node_modules -o -name '*-repo' \) -prune \) \
+    -o -type f -name '*.md' -print 2>/dev/null)" || return 0
+
+  local dead_count=0
+  local -a dead_lines=()
+  local absent_count=0
+  local -a absent_lines=()
+
+  local f
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+
+    # ── path-based role skips ──────────────────────────────────────────────────────
+    # _ops/archive/ and _ops/journal/ hold closed work — a dead pointer inside them is
+    # history being quoted, not a live claim.
+    case "$f" in
+      */_ops/archive/*|*/_ops/journal/*) continue ;;
+      # p.* basenames are the owner's, read-only (rule 4) — unactionable, so not a live claim we report.
+      */p.*) continue ;;
+    esac
+
+    # ── frontmatter role skip: `pointers: mixed` ───────────────────────────────────
+    # This is THE canonical classifier, specified here and nowhere else: a file whose frontmatter declares
+    # `pointers: mixed` is quoting history (harvest notes, resolved-rulings logs, repair
+    # lists with paths that were true when written) rather than asserting a currently-live
+    # claim, and is skipped whole. Only the leading `---`-delimited block counts —
+    # `pointers: mixed` appearing later, e.g. inside a fenced example, must not match.
+    local fm
+    fm="$(awk '
+      NR==1 && $0=="---" { infm=1; next }
+      infm && $0=="---" { exit }
+      infm && /^pointers:[[:space:]]*mixed[[:space:]]*$/ { print "MIXED"; exit }
+    ' "$f" 2>/dev/null)"
+    [ "$fm" = "MIXED" ] && continue
+
+    # ── extract asserted paths, skipping fenced code blocks ────────────────────────
+    # Fenced blocks (``` ... ```) quote history/examples, not live claims. Blank out fenced lines (preserving line numbers)
+    # before extracting, so a path only inside a fence is never counted.
+    local blanked matches
+    blanked="$(awk '
+      /^```/ { infence = !infence; print ""; next }
+      infence { print ""; next }
+      { print }
+    ' "$f" 2>/dev/null)"
+
+    matches="$(printf '%s\n' "$blanked" | grep -noE "($TILDE_ROOT|$ROOT)(/[A-Za-z0-9_.-]+)*" 2>/dev/null)"
+    [ -n "$matches" ] || continue
+
+    # Line numbers carrying the absent-by-design marker, as a space-delimited set. Read from
+    # $blanked, not from the file, so a marker inside a fenced example cannot suppress.
+    local marked
+    marked=" $(printf '%s\n' "$blanked" | grep -nF 'may-be-absent' 2>/dev/null | cut -d: -f1 | tr '\n' ' ')"
+
+    local line target abspath verdict
+    while IFS=: read -r line target; do
+      [ -n "$line" ] && [ -n "$target" ] || continue
+      abspath="${target/#\~/$HOME}"
+      if [ ! -e "$abspath" ]; then
+        verdict="missing"
+      elif [ ! -s "$abspath" ]; then
+        verdict="0 bytes"
+      else
+        continue
+      fi
+      case "$marked" in
+        *" $line "*)
+          absent_count=$((absent_count + 1))
+          absent_lines+=("$f:$line -> $target ($verdict)")
+          ;;
+        *)
+          dead_count=$((dead_count + 1))
+          dead_lines+=("$f:$line -> $target ($verdict)")
+          ;;
+      esac
+    done <<< "$matches"
+  done <<< "$files"
+
+  # ── report ───────────────────────────────────────────────────────────────────────
+  if [ "$dead_count" -eq 0 ]; then
+    echo "check-pointers: 0 dead pointers."
+  else
+    echo "check-pointers: $dead_count dead pointer(s):"
+    local dl
+    for dl in "${dead_lines[@]}"; do
+      echo "  $dl"
+    done
+    # The fix belongs where the failure is seen, not in a rule file nobody re-reads
+    # (workspace-rules.md rule 5). Anyone who hits this learns the marker here.
+    echo "  (absent on purpose? append <!-- may-be-absent --> to that LINE)"
+  fi
+  # Reported, never hidden: a suppressed pointer the reader cannot see is the failure this
+  # marker was meant to avoid, just pointed the other way.
+  if [ "$absent_count" -gt 0 ]; then
+    echo "check-pointers: + $absent_count absent-by-design (marked; not counted dead)"
+  fi
+
+  return 0
+}
+
+main
+exit 0

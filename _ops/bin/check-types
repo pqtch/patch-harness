@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# check-types — the frontmatter `type:` check.
+#
+# RULED: `type:` has exactly TWO closed vocabularies, and everywhere else
+# it is free text. The survey that produced the ruling found 14 distinct values in the tree,
+# which looked like drift and was not — it was three vocabularies of which only two were ever
+# written down, plus decoration.
+#
+# The test that decided which ones are real: DOES ANYTHING BEHAVE DIFFERENTLY BASED ON THE
+# VALUE?
+#   agent-memory  yes — the MEMORY.md index column, and memory-rules.md's write-gate tests
+#   a NOTE        yes — the type decides WHERE the file lands (templates/README.md)
+#   everything else  no. `type: design` on a design doc has never routed anything.
+#
+# So this checks the two that do work and is deliberately silent about the rest. Closing a
+# vocabulary nothing reads would be enforcing tidiness, not correctness.
+#
+# NEVER fails its caller — a warning, not a gate. Always exits 0, same rule as check-pointers.
+set -u
+
+# ROOT defaults to this workspace, derived from the script's own location; pass a dir to override.
+ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}"
+
+MEM_OK="identity feedback project reference"
+NOTE_OK="lesson reference finding note"
+
+in_set() { case " $2 " in *" $1 "*) return 0;; *) return 1;; esac; }
+
+main() {
+  cd "$ROOT" 2>/dev/null || return 0
+
+  local bad=0 out="" f t
+
+  # ── vocabulary A: memory lanes ──────────────────────────────────────────────
+  while IFS= read -r f; do
+    case "$f" in */MEMORY.md|*/README.md) continue;; esac  # indexes and docs are not memories
+    t="$(sed -n 's/^type: *//p' "$f" | head -1)"
+    # Diagnose the harness format specifically. Claude Code injects its own memory-writing
+    # instructions specifying `metadata:` with a nested `type:` — and naming the first type
+    # `user` where memory-rules.md names it `identity`. A memory written by following those
+    # instructions verbatim lands in that shape, so this WILL recur; say what it is rather
+    # than reporting a missing field. This workspace uses the FLAT form (MEMORY.tmp.md).
+    if [ -z "$t" ] && grep -q '^metadata:' "$f" 2>/dev/null; then
+      bad=$((bad+1)); out="$out\n  $f — nested metadata.type (harness format). Flatten to a top-level \`type:\`."; continue
+    fi
+    [ -n "$t" ] || { bad=$((bad+1)); out="$out\n  $f — no type: (memory lane requires one of: $MEM_OK)"; continue; }
+    in_set "$t" "$MEM_OK" || { bad=$((bad+1)); out="$out\n  $f — type: $t (memory lane allows: $MEM_OK)"; }
+  done < <(find .claude/agent-memory -name '*.md' -type f 2>/dev/null)
+
+  # ── vocabulary B: notes ─────────────────────────────────────────────────────
+  # A NOTE is identified by its own frontmatter, not its path — notes live wherever their
+  # subject lives. So: any file already claiming a NOTE-vocabulary type must claim a legal
+  # one. A file with some other type is not a note and is not this check's business.
+  while IFS= read -r f; do
+    case "$f" in .claude/agent-memory/*|.claude/templates/*|_ops/archive/*|*-repo/*) continue;; esac
+    t="$(sed -n 's/^type: *//p' "$f" | head -1)"
+    [ -n "$t" ] || continue
+    case "$t" in lesson|reference|finding|note) ;; *) continue;; esac
+    in_set "$t" "$NOTE_OK" || { bad=$((bad+1)); out="$out\n  $f — type: $t"; }
+  done < <(find . -name '*.md' -type f -not -path './.git/*' 2>/dev/null | sed 's|^\./||')
+
+  if [ "$bad" -eq 0 ]; then
+    echo "check-types: type: vocabularies OK."
+  else
+    echo "check-types: $bad file(s) outside a closed vocabulary:"
+    printf "%b\n" "$out"
+  fi
+  return 0
+}
+
+main
+exit 0

@@ -1,9 +1,77 @@
+# ── secrets ──────────────────────────────────────────────────────────────────
 *.env
 .env
 .env.*
 *.key
 *.pem
 credentials.json
+
+# ── the private side of the leak guard: your own names, projects, people ─────
+# _ops/bin/check-leak reads its wordlist from here. The list is itself content.
+_ops/private/
+
+# ── local settings (per-machine, never tracked) ───────────────────────────────
+.claude/settings.local.json
+
+# ── nested repos: ignore the DIRECTORY, wholesale ─────────────────────────────
+# For every project under projects/ that carries its OWN .git, add ONE line:
+#
+#     projects/<name>/<name>-repo/
+#
+# Not `dir/*`: that excludes a directory's CHILDREN, never the directory itself, so git
+# still walks in, finds the nested .git, and `git add -A` records a GITLINK (mode 160000) —
+# a submodule-shaped pointer nobody can clone back. Measured; no git config makes it an
+# error, only a warning. Ignoring the directory itself is the only thing that prevents it.
+#
+# WHAT THIS COSTS, accepted knowingly: a gitignored directory is invisible to skill
+# discovery, so the clone's own `.claude/` never loads here. Put the capability in the
+# shell above it:
+#
+#     projects/<name>/              <- this workspace owns it. Private notes about the repo go HERE.
+#     projects/<name>/<name>-repo/  <- the clone. Ignored.
+#
+# Adding a new one: create the shell + its CLAUDE.md, write the ignore line, THEN clone.
+
+# ── the relocated Claude Code config dir (setup.sh section 3) ─────────────────
+# CLAUDE_CONFIG_DIR=<workspace>/.claude-config. Transcripts, prompt history and specialist
+# memory become part of the repo, so continuity survives moving between machines. What is
+# excluded below, and the rule: anything holding a SECRET, plus machine-local runtime state
+# that would only churn. Everything else — transcripts, history, memory, tasks, settings —
+# is tracked deliberately.
+
+# secrets — NEVER track. A live OAuth token; re-login per machine is the accepted cost.
+.claude-config/.credentials.json
+# shell snapshots capture EXPORTED ENV VARS. The day an API key is exported it lands here.
+.claude-config/shell-snapshots/
+.claude-config/session-env/
+# per-process IPC state and tokens, pid-scoped, meaningless on another machine.
+.claude-config/sessions/
+
+# machine-local runtime — regenerable, high churn, no cross-machine value
+.claude-config/cache/
+.claude-config/paste-cache/
+.claude-config/daemon/
+.claude-config/daemon.log
+.claude-config/debug/
+.claude-config/telemetry/
+.claude-config/ide/
+.claude-config/jobs/
+.claude-config/backups/
+.claude-config/downloads/
+.claude-config/statsig/
+.claude-config/stats-cache.json
+.claude-config/.last-cleanup
+.claude-config/.last-update-result.json
+.claude-config/*.bak
+
+# vendored third-party checkouts, reinstallable
+.claude-config/plugins/
+
+# the harness's main state file — machine-local (per-session metrics, trust decisions,
+# lastSessionId), rewritten every session. Tracking it would conflict on every push from a
+# second machine. The harness regenerates it.
+.claude-config/.claude.json
+
 __pycache__/
 *.pyc
 .DS_Store

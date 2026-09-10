@@ -1,0 +1,50 @@
+{
+  "_note_scope": "Tracked and shared. settings.json is read for the launch directory and does not cascade from subdirectories — fine here, because there is exactly one launch point (the workspace root). Per-machine deltas belong in .claude/settings.local.json (gitignored), the ONLY local settings file Claude Code reads. Every local entry carries a _note with its consequence and date.",
+  "_note_env": "Env vars set here are inherited by every child process, including probe sessions. Any env var added MUST carry its own _note stating what behaviour it changes and the date — an unnoted switch is a trap with a timer on it (measured 2026-08-02, Claude Code 2.1.220: an unnoted env var silently changed --add-dir behaviour).",
+  "_note_paths": "Both hook commands below resolve their script through $CLAUDE_PROJECT_DIR — the directory claude was launched from, confirmed set for hook processes (measured 2026-08-16, Claude Code 2.1.233). No absolute path in this file points into the tree, so the tree can live anywhere.",
+  "_note_env_todo_tools": "CLAUDE_CODE_ENABLE_TODO_TOOLS=1 (2026-08-27): turns on task-tracking tools, which Claude Code 2.1.248 gates off by default. Subagents can only ever subset the parent session's tool surface, so without this NO agent def can grant a todo tool, whatever its tools: key says. Revert by deleting the key.",
+  "_note_env_tool_search": "ENABLE_TOOL_SEARCH=1 (2026-08-27): keeps rarely-used tools DEFERRED — name only in context, full schema fetched on demand. The cost of a tool is its schema; deferral removes that cost without removing the tool. Pinned explicitly so it does not silently flip.",
+  "env": {
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
+    "ENABLE_TOOL_SEARCH": "1"
+  },
+  "permissions": {
+    "deny": [
+      "Edit(p.*)",
+      "Edit(**/p.*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/sessionstart/thread/thread_delivery.py\"; [ -f \"$H\" ] && python3 \"$H\" || exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/pretooluse/gitlink_guard.sh\"; [ -f \"$H\" ] || exit 0; exec bash \"$H\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/pretooluse/readonly_guard.sh\"; [ -f \"$H\" ] || exit 0; exec bash \"$H\""
+          }
+        ]
+      }
+    ]
+  },
+  "_note_permissions": "Deny-only, deliberately. Rule 4 marks p.* files as the owner's and read-only; until 2026-08-27 that was prose asking a model to behave. ONLY Edit(path) RULES WORK: the harness prints a startup warning that Write(...) and NotebookEdit(...) path rules 'are not matched by file permission checks' — an Edit rule already covers every file-editing tool. Do not add a Write(...) path rule for anything. KNOWN HOLE, half-closed: sessions that run bash-first make `sed -i p.foo.md` a Bash call, which no Edit rule sees — that half is the readonly_guard PreToolUse hook above, the same rung the gitlink guard sits on. rm -rf scoping is the same shape: a permission rule matches a command prefix, not a resolved path, so 'destructive outside the workspace' is not expressible here."
+}

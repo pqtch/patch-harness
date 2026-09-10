@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ws — the launcher. Root the session at the workspace, optionally wearing a specialist.
+#
+#   ws                      → blank session at the workspace root. No --agent, no specialist
+#                             memory, no model pin: the auditing vantage, nobody wearing it.
+#   ws -p "…"               → still blank. A leading `-` is a claude flag, never a name.
+#   ws <specialist> [args]  → that specialist, rooted at the workspace root. It walks down
+#                             to the work.
+#
+# ROOT is derived from this script's own location, never hardcoded, so the tree can live
+# anywhere. Put `_ops/bin` on PATH, or symlink this file into one.
+#
+# Everything else is loaded NATIVELY by the harness from the launch root: CLAUDE.md, agents,
+# skills, commands, settings, and the SessionStart thread hook. This script only chooses a
+# directory and an identity.
+#
+# NOTE — the model pin. A specialist launches on WS_MODEL, default opus: a persistent
+# identity doing real work should not run on whatever the user-scope default happens to be.
+# Override per launch with WS_MODEL=<model>. Revisit deliberately, not by drift.
+#
+# NOTE — no identity env var, and this is not a style choice. MEASURED 2026-08-16, Claude
+# Code 2.1.233: the SessionStart hook of a `--agent <name>` session already receives the name
+# twice — as `agent_type` in its stdin JSON and as CLAUDE_CODE_AGENT in its env — so an
+# exported identity var would be redundant. Worse, it would be WRONG: CLAUDE_CODE_AGENT is
+# inherited, not reset, so a blank `ws` run from inside a specialist's session already
+# arrives carrying the parent's name. Adding a second inheritable identity var would add a
+# second way to be wrong. The thread hook therefore trusts stdin `agent_type` only; see
+# .claude/hooks/sessionstart/thread/thread_delivery.py.
+#
+# Fails loud on an unknown specialist. Never silently launches the wrong identity.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+if [ $# -eq 0 ] || [ "${1#-}" != "$1" ]; then
+  cd "$ROOT"
+  exec claude "$@"
+fi
+
+NAME="$1"; shift
+DEF="$ROOT/.claude/agents/$NAME.md"
+[ -f "$DEF" ] || { echo "ws: no such specialist def: $DEF" >&2; exit 1; }
+
+cd "$ROOT"
+exec claude --agent "$NAME" --model "${WS_MODEL:-opus}" "$@"
