@@ -60,7 +60,7 @@ might not read. What ships at each rung:
 | permission | `p.*` files are read-only to every editing tool | `settings.json` |
 | hook | a Bash `sed -i` on a `p.*` file · a commit staging a gitlink · a thread picked up exactly once | `.claude/hooks/` |
 | check | dead pointers · `type:` outside its vocabulary · private content in a public repo (`check-leak`, shipped but not installed until you have a public repo) | `_ops/bin/check-*` |
-| rule | eight rules, one screen | `.claude/rules/` |
+| rule | nine rules, one screen | `.claude/rules/` |
 | memory | what binds one specialist and nobody else | `.claude/agent-memory/` |
 
 ### Specialists and workers

@@ -17,7 +17,7 @@ and then outgrew it: the same tree its author uses daily, with every piece of co
 removed and every measurement kept. The test each file passed on the way in: *would this be
 true for someone who is not the author?*
 
-**Kept from the private tree:** the routing shape, the eight rules, the guard ladder, the
+**Kept from the private tree:** the routing shape, the rules, the guard ladder, the
 memory system and its checks, the templates, the hooks, the launcher, the session lifecycle
 (`/thread`, `/wrap`, the `Session:` trailer), three specialist roles and four workers, the
 author skills, and the measured harness behaviour in `GUIDE.md` and `harness-hooks.md`.

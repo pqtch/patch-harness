@@ -54,3 +54,14 @@
      laid by `.git/hooks/prepare-commit-msg` and **only fires when `CLAUDE_CODE_SESSION_ID`
      is set** — a commit made by hand in a plain terminal carries no trailer, and nothing
      that reads the history by session will see that work.
+
+9. **Open a directory's own `CLAUDE.md` with the READ TOOL, not `cat`.** A Read or Edit tool
+   call on a file is what attaches that directory's `.claude/skills/`; a Bash read does not.
+   MEASURED 2026-09-11, Claude Code 2.1.268, four runs in a clean clone: `cat projects/INDEX.md`
+   attached no `project-author`, the Read tool on the same file attached it; same result for
+   `craft/<name>/CLAUDE.md` and its pool. `~/workspace/docs/GUIDE.md`, "Skills".
+
+   A rule and not a hook because no hook can make a session choose a tool. It matters most in
+   a workspace that reads with `cat` by habit — **that habit is right for every other read and
+   wrong for this one** — and both failure directions are silent: an empty skill pool and a
+   pool that never attached look identical from inside a session.
