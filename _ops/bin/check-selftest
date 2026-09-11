@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# check-selftest — plants the failure every guard exists to refuse, and checks that it refuses.
+#
+# WHY THIS EXISTS (docs/incidents.md #6): two checks were found reporting CLEAN while checking nothing —
+# the leak guard split a `CS:` entry at the wrong colon and matched the literal string "CS";
+# the pointer check pruned its own root directory and scanned zero files. Neither was found by
+# reading; both were found by planting a known failure and watching it NOT be reported. The
+# same session verified twelve mechanisms by hand and that knowledge died with the session.
+# This script is that session, repeatable. Rule: a guard is only as good as its last positive
+# test, so every case below plants the bad input AND the good input.
+#
+# Everything runs in a scratch tree under mktemp; nothing here touches the live repo. The
+# scoped guards  are pointed at the scratch tree by
+# overriding HOME for that one call.
+#
+# This is a TEST, not a hook: it MAY fail its caller. Exit 1 on any failed case.
+# Usage: check-selftest [-v]
+set -u
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+HOOKS="$ROOT/.claude/hooks"
+BIN="$ROOT/_ops/bin"
+VERBOSE=0; [ "${1:-}" = "-v" ] && VERBOSE=1
+PASS=0; FAIL=0
+T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
+
+ok()   { PASS=$((PASS+1)); [ "$VERBOSE" -eq 1 ] && echo "  ok    $1"; return 0; }
+bad()  { FAIL=$((FAIL+1)); echo "  FAIL  $1${2:+ — $2}"; }
+# expect <exit-code> <name> <command...>   (stdin already arranged by caller)
+expect() { local want="$1" name="$2"; shift 2; local out; out="$("$@" 2>&1)"; local got=$?; if [ "$got" -eq "$want" ]; then ok "$name"; else bad "$name" "wanted exit $want, got $got: $(printf '%s' "$out" | head -1)"; fi; }
+json() { printf '{"tool_name":"%s","tool_input":%s,"cwd":"%s"}' "$1" "$2" "${3:-$T}"; }
+bashcmd() { json Bash "{\"command\":\"$1\"}" "${2:-$T}"; }
+
+# ── a scratch repo with two staged files, used by several cases ─────────────────────
+S="$T/ws"; mkdir -p "$S"; git -C "$S" init -q; git -C "$S" config user.email t@t; git -C "$S" config user.name t
+echo a > "$S/a.txt"; echo b > "$S/b.txt"; git -C "$S" add a.txt b.txt; git -C "$S" commit -qm base
+echo c > "$S/c.txt"; git -C "$S" add c.txt   # staged, not committed: the sweep victim
+
+echo "check-selftest"
+# ── 1. readonly_guard ────────────────────────────────────────────────────────────────
+I=i; F=notes.md   # assembled so that this script's own text never names a p.* mutation
+bashcmd "sed -${I} s/a/b/ p.${F}" | expect 2 "readonly: refuses sed -${I} on p.* file" bash "$HOOKS/pretooluse/readonly_guard.sh"
+bashcmd "echo x > p.${F}" | expect 2 "readonly: refuses redirect onto p.* file" bash "$HOOKS/pretooluse/readonly_guard.sh"
+bashcmd "cat p.${F}; grep x p.${F}" | expect 0 "readonly: allows reading p.* file" bash "$HOOKS/pretooluse/readonly_guard.sh"
+
+# ── 3. commit_scope_guard ────────────────────────────────────────────────────────────
+bashcmd 'echo d > d.txt; git add d.txt && git commit -m t' "$S" | expect 2 "commit-scope: refuses named add + pathspec-less commit over staged extras" bash "$HOOKS/pretooluse/commit_scope_guard.sh"
+bashcmd 'git add -A && git commit -m t' "$S" | expect 0 "commit-scope: allows add -A" bash "$HOOKS/pretooluse/commit_scope_guard.sh"
+bashcmd 'git add d.txt && git commit -m t -- d.txt' "$S" | expect 0 "commit-scope: allows pathspec commit" bash "$HOOKS/pretooluse/commit_scope_guard.sh"
+bashcmd 'git commit -m t' "$S" | expect 0 "commit-scope: allows bare commit" bash "$HOOKS/pretooluse/commit_scope_guard.sh"
+
+# ── 4. gitlink guard, layer 2 (settings hook) — copied into the scratch tree, since it scopes to its own root ──
+mkdir -p "$S/inner"; git -C "$S/inner" init -q; git -C "$S/inner" config user.email t@t; git -C "$S/inner" config user.name t; echo i > "$S/inner/i"; git -C "$S/inner" add i; git -C "$S/inner" commit -qm i
+git -C "$S" add -A 2>/dev/null
+mkdir -p "$S/.claude/hooks/pretooluse"; cp "$HOOKS/pretooluse/gitlink_guard.sh" "$S/.claude/hooks/pretooluse/"
+bashcmd 'git commit -m x' "$S" | expect 2 "gitlink L2: refuses commit with staged gitlink" bash "$S/.claude/hooks/pretooluse/gitlink_guard.sh"
+bashcmd 'head .git/hooks/pre-commit' "$S" | expect 0 "gitlink L2: ignores a mention of git commit" bash "$S/.claude/hooks/pretooluse/gitlink_guard.sh"
+# ── 5. gitlink guard, layer 1 (the installed pre-commit) ─────────────────────────────
+PC="$(git -C "$ROOT" rev-parse --git-path hooks)/pre-commit"; case "$PC" in /*) ;; *) PC="$ROOT/$PC" ;; esac
+if [ -x "$PC" ]; then
+  sed -e 's#^POINTERS=.*#POINTERS=/nonexistent#' -e 's#^TYPES=.*#TYPES=/nonexistent#' "$PC" > "$S/.git/hooks/pre-commit"; chmod +x "$S/.git/hooks/pre-commit"   # tree-wide checks are tested on their own below
+  expect 1 "gitlink L1: pre-commit refuses staged gitlink" git -C "$S" commit -qm x
+  git -C "$S" rm -q --cached -f inner; rm -rf "$S/inner"
+  expect 0 "gitlink L1: pre-commit allows a clean commit" git -C "$S" commit -qm clean
+else bad "gitlink L1: no installed pre-commit at $PC — run setup.sh"; fi
+# ── 6. prepare-commit-msg: the Session trailer ───────────────────────────────────────
+PM="$(dirname "$PC")/prepare-commit-msg"
+if [ -x "$PM" ]; then
+  cp "$PM" "$S/.git/hooks/prepare-commit-msg"; echo e > "$S/e.txt"; git -C "$S" add e.txt
+  CLAUDE_CODE_SESSION_ID=selftest-id git -C "$S" commit -qm e && [ "$(git -C "$S" log -1 --format='%(trailers:key=Session,valueonly)')" = "selftest-id" ] && ok "trailer: stamped when session id set" || bad "trailer: not stamped"
+  echo f > "$S/f.txt"; git -C "$S" add f.txt
+  env -u CLAUDE_CODE_SESSION_ID git -C "$S" commit -qm f && [ -z "$(git -C "$S" log -1 --format='%(trailers:key=Session,valueonly)')" ] && ok "trailer: absent when no session id" || bad "trailer: stamped without a session id"
+else bad "trailer: no installed prepare-commit-msg — run setup.sh"; fi
+
+# ── 7. thread_delivery ───────────────────────────────────────────────────────────────
+TD="$T/td"; mkdir -p "$TD/projects/p"; printf '# THREAD\nhello\n' > "$TD/projects/p/thread.x.md"
+out="$(printf '{"agent_type":"x","cwd":"%s"}' "$TD" | CLAUDE_PROJECT_DIR="$TD" python3 "$HOOKS/sessionstart/thread/thread_delivery.py" 2>/dev/null)"
+if printf '%s' "$out" | grep -q '"additionalContext"' && [ ! -e "$TD/projects/p/thread.x.md" ]; then ok "thread: delivers and deletes the baton"; else bad "thread: did not deliver+delete"; fi
+printf '# THREAD\n' > "$TD/projects/p/thread.x.md"
+out="$(printf 'garbage' | CLAUDE_CODE_AGENT=x CLAUDE_PROJECT_DIR="$TD" python3 "$HOOKS/sessionstart/thread/thread_delivery.py" 2>/dev/null)"
+if [ -z "$out" ] && [ -e "$TD/projects/p/thread.x.md" ]; then ok "thread: refuses inherited env identity on garbage stdin"; else bad "thread: consumed a baton on an inherited identity"; fi
+
+# ── 8. check-pointers ──────────────────────────────────────────────────────────────────
+PT="$T/ptr"; mkdir -p "$PT"; printf 'see `%s/definitely/not/here.md`\n`%s/also/not/here.md` <!-- may-be-absent -->\n' "$PT" "$PT" > "$PT/x.md"
+out="$("$BIN/check-pointers" "$PT" 2>/dev/null)"
+printf '%s' "$out" | grep -q "1 dead pointer" && ok "pointers: counts a planted dead pointer" || bad "pointers: missed a planted dead pointer" "$(printf '%s' "$out" | head -1)"
+printf '%s' "$out" | grep -q "1 absent-by-design" && ok "pointers: tallies a marked line separately" || bad "pointers: marker not honoured"
+
+# ── 9. check-types ─────────────────────────────────────────────────────────────────────
+TY="$T/types"; mkdir -p "$TY/.claude/agent-memory/x"; printf -- '---\nname: x\ndescription: x\nmetadata:\n  type: user\n---\nx\n' > "$TY/.claude/agent-memory/x/bad.md"
+"$BIN/check-types" "$TY" 2>/dev/null | grep -q "nested metadata.type" && ok "types: reports the harness nested form" || bad "types: missed a nested metadata.type"
+printf -- '---\nname: y\ndescription: y\ntype: feedback\n---\ny\n' > "$TY/.claude/agent-memory/x/bad.md"
+"$BIN/check-types" "$TY" 2>/dev/null | grep -q "vocabularies OK" && ok "types: accepts the flat form" || bad "types: rejected a legal flat memory"
+
+# ── 10. check-leak — with a throwaway wordlist, since the real one is private ────────
+L="$T/leak"; mkdir -p "$L"; git -C "$L" init -q; git -C "$L" config user.email t@t; git -C "$L" config user.name t
+printf 'CS:\\bZed\\b:owner name\n\\bsecretproj\\b:a project\n' > "$T/denylist.txt"
+echo "work on secretproj" > "$L/l.md"; git -C "$L" add l.md
+expect 1 "leak: refuses a planted private word" "$BIN/check-leak" --repo "$L" --list "$T/denylist.txt" --quiet
+echo "Zed wrote this" > "$L/l.md"; git -C "$L" add l.md
+expect 1 "leak: case-sensitive owner name refused" "$BIN/check-leak" --repo "$L" --list "$T/denylist.txt" --quiet
+echo "zed as a plain word" > "$L/l.md"; git -C "$L" add l.md
+expect 0 "leak: case-sensitive entry ignores the lowercase word" "$BIN/check-leak" --repo "$L" --list "$T/denylist.txt" --quiet
+expect 0 "leak: fails open with no wordlist" "$BIN/check-leak" --repo "$L" --list "$T/none.txt" --quiet
+
+echo "check-selftest: $PASS passed, $FAIL failed."
+[ "$FAIL" -eq 0 ]

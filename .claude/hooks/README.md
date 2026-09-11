@@ -22,6 +22,8 @@ are architecture.** `SessionStart` and `SubagentStart` are the loading mechanism
 the thing it guarded against. And **every guard needs a positive test** — plant the failure
 it exists to refuse and watch it refuse. A test that only checks clean input passes proves
 nothing; two of the checks in this tree shipped a bug that only a planted failure found.
+`_ops/bin/check-selftest` is that discipline as a script: it plants every failure below and
+is run at every wrap.
 
 Before writing one, read `~/workspace/docs/harness-hooks.md` — the event table (what can
 block, what can inject) and the three failure modes, one of which destroyed a baton in

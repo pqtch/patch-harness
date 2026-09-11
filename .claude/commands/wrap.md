@@ -18,7 +18,9 @@ description: Close out a session — reconcile CLAUDE.md and STICKY.md against r
 4. Commit all work from this session. Every commit carries a `Session: <id>` trailer, and the
    last one is the closing marker — its absence is the signal that a session was never
    wrapped.
-5. Run `~/workspace/_ops/bin/check-pointers`. It is a warning, not a gate — act on what it finds:
+5. Run `~/workspace/_ops/bin/check-selftest` — it plants the failure every guard refuses and
+   must report 0 failed; a failure means a guard is silently not guarding, and the wrap stops
+   until it is understood. Then run `~/workspace/_ops/bin/check-pointers`. It is a warning, not a gate — act on what it finds:
    repoint the unambiguous typo/rename dead pointers it names, and leave anything requiring
    judgment (a genuinely missing file, a historical record quoting an old path) listed rather
    than guessed at. (`check-types` and the gitlink guard run themselves, on every commit.)

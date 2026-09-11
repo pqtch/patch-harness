@@ -1,0 +1,3 @@
+# history.jsonl is append-only and tracked; two machines both append, so a plain merge
+# conflicts on every pull. union keeps both sides' lines. Ruled 2026-09-10.
+.claude-config/history.jsonl merge=union

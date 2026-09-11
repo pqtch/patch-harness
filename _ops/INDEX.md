@@ -6,7 +6,7 @@ source of truth about a project — the project owns that.
 ## Index
 | Path | Description |
 |---|---|
-| `~/workspace/_ops/bin/` | `ws` (the launcher), `setup.sh`, the three checks — anything on PATH |
+| `~/workspace/_ops/bin/` | `ws` (the launcher), `setup.sh`, the three checks, and `check-selftest` — plants every guard's failure; run at wrap |
 | `~/workspace/_ops/scripts/` | one-job scripts, run by hand or by a hook <!-- may-be-absent --> |
 | `~/workspace/_ops/docs/` | design records — the *why* behind YOUR structural decisions (the boilerplate's own are at `~/workspace/docs/`) |
 | `~/workspace/_ops/journal/` | one dated record per day, append-only |

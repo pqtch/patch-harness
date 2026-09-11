@@ -83,6 +83,7 @@ not been tested.
 ## Verify
 From inside a session (so the trailer hook has a session id to stamp):
 ```sh
+_ops/bin/check-selftest     # plants every guard's failure; 0 failed
 _ops/bin/check-pointers      # 0 dead pointers
 _ops/bin/check-types         # type: vocabularies OK
 git add .claude-config && git commit -m 'setup' && git log -1 --format='%(trailers:key=Session)'   # prints Session: <id>
