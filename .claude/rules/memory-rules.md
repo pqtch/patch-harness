@@ -31,7 +31,9 @@ type: identity | feedback | project | reference
 ---
 ```
 
-Checked by `~/workspace/_ops/bin/check-types`. Craft is not a memory type: a procedure is a
+Checked by `~/workspace/_ops/bin/check-types`, which enforces this vocabulary because a lane
+file is identified by its path. (The note vocabulary in rule 7 is not enforceable the same
+way; rule 7 says why.) Craft is not a memory type: a procedure is a
 skill and lives in `~/workspace/craft/<specialist>/`.
 
 **The harness will fight you on this.** Claude Code injects its own memory-writing

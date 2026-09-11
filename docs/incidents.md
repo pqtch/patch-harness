@@ -22,9 +22,9 @@ the outside (`lineage.md`).
 **What happened.** A `SessionStart` hook resolved which specialist was booting from
 `CLAUDE_CODE_AGENT` in its environment. That variable is an ordinary exported var: a blank
 `claude` launched from inside a specialist's shell inherits the parent's name. The hook's one
-irreversible act — delivering and deleting a handoff baton — ran on the wrong session and
-destroyed the baton. Verified in a clean-room test, Claude Code 2.1.233: garbage stdin plus an
-inherited env var delivered and deleted another specialist's baton.
+irreversible act — picking up and deleting a session thread — ran on the wrong session and
+destroyed the thread. Verified in a clean-room test, Claude Code 2.1.233: garbage stdin plus an
+inherited env var picked up and deleted another specialist's thread.
 
 **What it bought.** The hook trusts only the harness-set stdin payload (`agent_type`), which
 cannot be inherited, and the env var is not even a fallback. The launcher exports no identity
@@ -87,8 +87,28 @@ input passes proves nothing; two of the checks in this tree shipped a bug that o
 failure found. The other was the leak guard's case-sensitivity prefix, which for one revision
 split the entry at the wrong colon, matched the literal string `CS`, and reported clean.
 
+**It happened twice more on 2026-09-11, during the audit before this repository went public.**
+Both are recorded here rather than quietly fixed, because the recurrence is the finding.
+
+- `check-types` claimed two closed vocabularies and enforced one. The NOTE branch filtered a
+  file's `type:` down to the four legal values and then tested membership in those same four,
+  so it could not fail: `type: bogus-kind` reported *"vocabularies OK"*. Found by planting that
+  exact string. It is now two checks that can fail — an unfilled mold placeholder, and a
+  `## Measured` section on a type other than `finding` — and `workspace-rules.md` rule 7 now
+  says plainly that only the memory vocabulary is enforceable, and why.
+- **And the fix reintroduced the original bug.** Widening the selftest's skill-budget scan to
+  the whole tree, the new `find` was written without `-mindepth 1`. This repository's own
+  directory ends in `-repo`; the prune took the root at depth zero; the scan found zero files
+  and the budget assertion `[ total -lt 8000 ]` **passed loudest at total=0**. Incident #6,
+  reproduced by the person reading incident #6, inside the script written to catch incident #6.
+  The guard added is a floor: assert the scan found something before believing what it measured.
+
+The generalisation, which is the only durable part: **a threshold check needs a floor.** Every
+`less-than` assertion is satisfied by an empty scan, so it reports green exactly when it has
+stopped working. Assert that the measurement happened before asserting anything about it.
+
 ## The pattern
-Six incidents, one shape: **a mechanism acted on the tree's state instead of on what it had
+Six incidents (one of them three times), one shape: **a mechanism acted on the tree's state instead of on what it had
 itself produced**, or **a check passed without exercising the thing it checks.** The fixes are
 the same each time — bound the write-set to what you made, and plant the failure before
 trusting the pass.

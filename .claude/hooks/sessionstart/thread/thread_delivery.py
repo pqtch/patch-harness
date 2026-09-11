@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""thread_delivery.py — SessionStart hook. Hands the baton to the session that picks it up.
+"""thread_delivery.py — SessionStart hook. Puts a waiting thread in front of the session that left it.
 
 /thread writes `thread.<agent>.md` into the project directory a session was working in.
 This hook finds that file at the next boot of the same specialist, injects it, and DELETES it.
-A consumed baton left on disk lies: its existence means a handoff is pending
+A picked-up thread left on disk lies: its existence means a thread is still waiting
 (`docs/GUIDE.md`, "Where state lives"). Committed work is the source of
 truth, so deleting loses nothing.
 
@@ -20,7 +20,7 @@ CONTAMINATED control):
     `claude` (no `--agent`) from inside a session whose env already had
     CLAUDE_CODE_AGENT=center gave the child's hook CLAUDE_CODE_AGENT=center while stdin
     agent_type was correctly absent. CONSEQUENCE: trusting the env var first would hand the center's
-    baton to a blank session and delete it. It is used only as a last resort, when stdin
+    thread to a blank session and delete it. It is used only as a last resort, when stdin
     carried no parseable JSON at all — i.e. when the harness said nothing. This INVALIDATES
     the original spec line "agent name := CLAUDE_CODE_AGENT"; the var reaches the hook, but
     reaching is not the same as being true.
@@ -30,10 +30,10 @@ CONTAMINATED control):
     override for fixtures and debugging — nothing sets it automatically.
   * CLAUDE_PROJECT_DIR **is** set, to the directory `claude` was launched from. That is the
     workspace root under the `ws` launcher, which always `cd $ROOT` first.
-  * `source` is one of startup | resume | compact. This hook does not discriminate: a baton
-    that survives to a compact boot is still an undelivered baton.
+  * `source` is one of startup | resume | compact. This hook does not discriminate: a thread
+    that survives to a compact boot is still a thread nobody has picked up.
   * SessionStart does NOT fire for in-process Task subagents — only real sessions
-    (interactive or headless `-p`). Subagents never consume a baton.
+    (interactive or headless `-p`). Subagents never pick up a thread.
 
 FAIL OPEN, always. Hook failures are invisible to the model, and a boot hook that dies must
 never brick a session. Every path here ends in exit 0; diagnostics go to stderr only.
@@ -44,7 +44,7 @@ import re
 import sys
 
 PRUNE_DIRS = {".git", "node_modules"}
-# Molds are not batons. `.claude/templates/THREAD.tmp.md` is not named `thread.<agent>.md`
+# Molds are not threads. `.claude/templates/THREAD.tmp.md` is not named `thread.<agent>.md`
 # today, but the templates dir is pruned so a future rename can never make a mold deliverable.
 PRUNE_UNDER_CLAUDE = {"templates"}
 
@@ -77,14 +77,14 @@ def resolve_agent(data: dict, had_payload: bool) -> str:
 
     CLAUDE_CODE_AGENT is deliberately NOT a fallback, though it is present in the environment.
     It is inherited rather than reset, so it is a *guess* about identity, and this hook's one
-    irreversible act — deleting a baton — must never run on a guess.
+    irreversible act — deleting a thread — must never run on a guess.
 
     AMENDED 2026-08-16 (integrating). The build measured the env var reaching the hook
     and used it when stdin carried no parseable payload. Verified refusal case: garbage stdin
-    plus an inherited CLAUDE_CODE_AGENT=<other> DELIVERED AND DELETED another specialist's baton — the wrong
-    session consuming a handoff, which is the 2026-07-21 identity-leak failure exactly. The
-    losses are asymmetric: an undelivered baton is delayed and still on disk, a wrongly
-    consumed one is destroyed silently. An undelivered baton is recoverable and a destroyed one is not, so the tie goes to
+    plus an inherited CLAUDE_CODE_AGENT=<other> DELIVERED AND DELETED another specialist's thread — the wrong
+    session picking up a thread that was not its own, which is the 2026-07-21 identity-leak failure exactly. The
+    losses are asymmetric: a thread nobody picked up is delayed and still on disk, a wrongly
+    picked-up one is destroyed silently. The first is recoverable and the second is not, so the tie goes to
     not-deleting. In practice this costs nothing — a real SessionStart always carries a
     payload, so the removed branch only ever fired in the degraded case where it was unsafe.
     """
@@ -105,7 +105,7 @@ def resolve_root(data: dict) -> str:
     return os.getcwd()
 
 
-def find_batons(root: str, filename: str) -> list:
+def find_threads(root: str, filename: str) -> list:
     """Every `thread.<agent>.md` under root, sorted. Usually 0 or 1."""
     hits = []
     for dirpath, dirnames, filenames in os.walk(root):
@@ -123,10 +123,10 @@ def read_last_and_proposals(root: str, lane: str, delete_proposals: bool) -> lis
     """The two objective surfaces check-digest writes for this identity (the objective side).
 
     LAST.md is injected and never deleted — it is overwritten by the next digest. The
-    proposals file is injected and DELETED, like a baton: the specialist accepts what is true into
+    proposals file is injected and DELETED, like a thread: the specialist accepts what is true into
     its own lane in its own words, or drops it, and the journal keeps the record either way.
     Deletion happens only when identity is authoritative (delete_proposals), for the same
-    reason a baton is never consumed on a guess.
+    reason a thread is never picked up on a guess.
     """
     out = []
     last = os.path.join(root, ".claude", "agent-memory", lane, "LAST.md")
@@ -156,38 +156,38 @@ def main() -> None:
     parts = []
 
     # Blank sessions (payload present, no --agent) get the blank lane's brief and proposals.
-    # No baton search for them: batons are per-agent and this session is nobody.
+    # No thread search for them: threads are per-agent and this session is nobody.
     if not agent:
         if had_payload:
             parts.extend(read_last_and_proposals(root, "blank", True))
         if parts:
             print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "\n\n".join(parts)}}))
         return
-    for path in find_batons(root, f"thread.{agent}.md"):
+    for path in find_threads(root, f"thread.{agent}.md"):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as fh:
                 body = fh.read()
         except OSError as exc:
-            print(f"thread_delivery: unreadable baton {path}: {exc}", file=sys.stderr)
+            print(f"thread_delivery: unreadable thread {path}: {exc}", file=sys.stderr)
             continue
-        parts.append(f"## Baton: {path}\n\n{body.rstrip()}")
-        # Delete AFTER a successful read. A baton that could not be read is left in place.
+        parts.append(f"## Thread: {path}\n\n{body.rstrip()}")
+        # Delete AFTER a successful read. A thread that could not be read is left in place.
         try:
             os.remove(path)
         except OSError as exc:
             print(f"thread_delivery: could not delete {path}: {exc}", file=sys.stderr)
 
-    baton_count = len(parts)
+    thread_count = len(parts)
     parts.extend(read_last_and_proposals(root, agent, True))
     if not parts:
-        return  # No baton, no brief, no proposals. Silence is the normal case.
+        return  # No thread, no brief, no proposals. Silence is the normal case.
 
     text = "\n\n".join(parts)
-    if baton_count:
+    if thread_count:
         text = (
-            "A thread baton was waiting for you and has been delivered below. The file has "
+            "A thread was waiting for you and has been picked up below. The file has "
             "already been deleted — do not look for it, and do not delete it again. It is a "
-            "handoff, not a record: committed work is the source of truth.\n\n" + text
+            "thread, not a record: committed work is the source of truth.\n\n" + text
         )
     print(json.dumps({
         "hookSpecificOutput": {

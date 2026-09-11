@@ -22,7 +22,7 @@ is authoritative about it.
 |---|---|---|---|---|
 | **brief** | `projects/<p>/CLAUDE.md` | stable; updated at wrap | law on touch | the session |
 | **sticky** | `projects/<p>/.claude/STICKY.md` | to-dos + one-liner ideas | least trusted, read on demand | the session |
-| **thread** | `projects/<p>/thread.<agent>.md` | ephemeral baton — deleted on pickup | handoff only | the closing session |
+| **thread** | `projects/<p>/thread.<agent>.md` | ephemeral — deleted on pickup | pickup only | the closing session |
 | **journal** | `_ops/journal/<YYYY-MM-DD>.md` | one per day, one section per session, append-only | historical record | `check-digest`, from the transcript — objective |
 | **brief** (LAST) | `.claude/agent-memory/<name>/LAST.md` | overwritten every session | injected at boot; not a memory | `check-digest` |
 | **proposals** | `_ops/inbox/proposals.<name>.md` | until the next boot, then deleted | filing decision for the specialist | `check-digest` |
@@ -33,17 +33,18 @@ the session — brief updated if understanding changed, leftovers to the sticky,
 commit, a push. End-of-session invariant: **nothing open, no confusion.** An idea too big for
 a sticky line becomes a sketch or a subproject.
 
-**Thread is a baton, not a record**: written only when clearing a session the next session
+**A thread is picked up, not kept**: written only when clearing a session the next session
 will continue (`/thread`), injected by the `SessionStart` hook when present, deleted on pickup.
-Committed work is the source of truth. Its existence means a handoff is pending. Workspace-
-level volatile items live in `.claude/STICKY.md`.
+Committed work is the source of truth. Its existence means a thread is still waiting.
+Workspace-level volatile items live in `.claude/STICKY.md`.
 
 ## The session lifecycle
 1. **Launch** once, at the root: `claude` or `ws [specialist]`. Agents, root skills, commands,
    rules, settings and the boot hook all load from here and nowhere else.
-2. **Walk down.** Reading any file in a directory loads that directory's `CLAUDE.md` **and**
-   its `.claude/skills/`. Native Claude Code behaviour, not a local rule — which is why it is
-   recorded here and not stated at boot. `/cd` is ergonomics only: it injects the target
+2. **Walk down.** Opening a file in a directory with the **Read tool** loads that directory's
+   `CLAUDE.md` **and** its `.claude/skills/`. Native Claude Code behaviour, not a local rule —
+   which is why it is recorded here and not stated at boot. Bash `cat` does not trigger it
+   (measured 2026-09-11; see "Skills" below). `/cd` is ergonomics only: it injects the target
    `CLAUDE.md` but loads no skills and no agents.
 3. **Work.** Commit at natural boundaries; the trailer hook stamps each commit.
 4. **Close.** `/wrap` if the topic is finished; `/thread` first if the next session will
@@ -70,7 +71,23 @@ in a project subdirectory does *not* load — unlike `.claude/skills/` beside it
 |---|---|
 | `<config dir>/skills/` | every project, always |
 | `<root>/.claude/skills/` | session start |
-| `<subdir>/.claude/skills/` | **lazily** — first time a file in that subdir is read or edited |
+| `<subdir>/.claude/skills/` | **lazily** — first Read/Edit **tool** call on a file in that subdir. Bash `cat` does not count; see below |
+
+**"Touch" means the Read or Edit TOOL, not any access to the file.** MEASURED 2026-09-11,
+Claude Code 2.1.268, four runs in a clean clone of this tree. A session that opened
+`projects/INDEX.md` with the **Read tool** then listed `project-author` among its skills; a
+session that opened the same file with **Bash `cat`** did not, and neither did one that ran
+`sed -n` over `craft/researcher/CLAUDE.md`. A Read of that craft file *did* attach
+`source-verification`. Same file, same directory, same session shape — the tool was the only
+variable.
+
+**CONSEQUENCE, and it is not small: a bash-first session never discovers a nested skill.**
+Every `.claude/skills/` below the root — every craft pool, every project skill — stays dark,
+with no error, for a session that reads with `cat`, `sed -n`, `head` or `grep`. This is the
+exact silent failure the craft indices warn about, reached through the mechanism they
+recommend: a specialist told to "read `craft/<name>/CLAUDE.md` before starting" that does so
+with Bash has done nothing at all. **Open the attaching file with the Read tool.** Bash is
+right for everything else; it is wrong for this one act.
 
 Once discovered, a skill stays for the session — **discovery is a one-way ratchet.** Root
 skills are resident for the whole session and are paid again by every subagent spawned.
@@ -90,7 +107,7 @@ loading; different surface.
 |---|---|
 | `context: fork` + `agent:` | runs the skill in a forked subagent of that type |
 | `allowed-tools:` / `disallowed-tools:` | shapes the tool pool for the invoking turn |
-| `disable-model-invocation: true` | user-only — the model can never self-trigger it |
+| `disable-model-invocation: true` | documented as user-only. **MEASURED 2026-09-11, Claude Code 2.1.268: it did NOT bind** — a session asked to invoke a skill carrying it did so, successfully. Treat it as a declaration of intent, not a gate. The other rows in this table are from the docs and have not been re-measured |
 | `user-invocable: false` | model-only — hidden from the `/` menu |
 | `argument-hint:` / `arguments:` | autocomplete hint and named `$arg` substitution |
 

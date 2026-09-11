@@ -25,6 +25,13 @@ def main():
         return
     root = os.environ.get("CLAUDE_PROJECT_DIR") or data.get("cwd") or os.getcwd()
     cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(root, ".claude-config")
+    # Create the dir rather than fail open into silence: if it is absent the sidecar is never
+    # written, and check-sessions, check-digest and the LAST brief all go dark with no error
+    # anywhere. Creating one empty directory is the cheaper side of that trade.
+    try:
+        os.makedirs(cfg, exist_ok=True)
+    except OSError:
+        return
     path = os.path.join(cfg, "session-specialists.tsv")
     line = "\t".join([data["session_id"], agent,
                       datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

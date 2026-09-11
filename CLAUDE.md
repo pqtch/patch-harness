@@ -10,7 +10,7 @@ that name changes everywhere in one `sed` — it is a name, not a mechanism.
 | `~/workspace/.claude/STICKY.md` | to-dos + one-liner ideas; *volatile* |
 | `~/workspace/.claude/USER.md` | who the owner is — shared across every specialist; user-shaped knowledge routes here |
 | `~/workspace/projects/` | persistent work (`~/workspace/projects/INDEX.md`) |
-| `~/workspace/craft/` | on-demand personal skills — **a specialist reads `~/workspace/craft/<its-own-name>/CLAUDE.md` before starting; its skills load only once a file there is touched, and skipping it raises no error** — plus the shared skillpool (`~/workspace/craft/skillpool/INDEX.md`) |
+| `~/workspace/craft/` | on-demand personal skills — **a specialist opens `~/workspace/craft/<its-own-name>/CLAUDE.md` with the Read tool before starting; its skills attach only then — Bash `cat` does not attach them (measured, `~/workspace/docs/GUIDE.md`) — and skipping it raises no error** — plus the shared skillpool (`~/workspace/craft/skillpool/INDEX.md`) |
 | `~/workspace/sketch/` | pre-projects (`~/workspace/sketch/INDEX.md`) |
 | `~/workspace/_ops/inbox/` | accepted-but-unfiled durable lessons; staging, never a destination |
 | `~/workspace/_ops/` | bin, scripts, docs, journal, plans, archive (`~/workspace/_ops/INDEX.md`) |

@@ -21,6 +21,7 @@ My lane is `~/workspace/.claude/agent-memory/<specialist>/` — four types: `ide
 type holds and when to go looking. Craft is not a memory type.
 
 ## Craft
-**Before you begin, read `~/workspace/craft/<specialist>/CLAUDE.md`.** My skills live under it and
-are only discovered once a file there is touched — skipping this leaves me without them,
-with no error to tell me so.
+**Before you begin, open `~/workspace/craft/<specialist>/CLAUDE.md` with the Read tool.** My
+skills live under it and attach only on that Read — a Bash `cat` of the same file attaches
+nothing (measured; `~/workspace/docs/GUIDE.md`). Skipping this leaves me without them, with no
+error to say so.

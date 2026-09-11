@@ -28,8 +28,8 @@ grep -rl '~/workspace' --exclude-dir=.git . | xargs sed -i 's#~/workspace#~/YOUR
    `pre-commit` you wrote is already there, it is kept and chained**, not overwritten.
 3. **Asks** whether to relocate the Claude Code config dir into this repo. Say yes. What
    that does, exactly:
-   - appends two lines to `~/.bashrc` setting `CLAUDE_CONFIG_DIR=~/workspace/.claude-config` <!-- may-be-absent -->
-     (zsh users: copy those two lines into `~/.zshrc`; the script only knows bash)
+   - appends a marker and one `export` line to `~/.bashrc`, setting `CLAUDE_CONFIG_DIR=~/workspace/.claude-config` <!-- may-be-absent -->
+     (zsh users: copy that export into `~/.zshrc`; the script only knows bash)
    - creates `.claude-config/agent-memory -> ../.claude/agent-memory`
    - copies your existing `~/.claude` **config only** (settings, agents, skills, commands) —
      never credentials, never other projects' transcripts
@@ -53,7 +53,8 @@ claude          # or: ws
 
 ## What ships empty, on purpose
 - `projects/`, `sketch/` — indices only. The first project is made with the `project-author`
-  skill, which loads on touching anything under `projects/`.
+  skill, which attaches the first time a file under `projects/` is opened with the Read
+  tool (Bash `cat` does not attach it — `docs/GUIDE.md`).
 - `craft/center/`, `craft/analyst/` — empty skill pools whose `CLAUDE.md` says so, because
   an empty pool and a pool that failed to attach look identical from inside a session.
 - `.claude/agent-memory/*/MEMORY.md` — empty typed indices. Filled through use.

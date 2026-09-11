@@ -1,10 +1,10 @@
 ---
-description: Write a handoff baton for the next session on this topic — volatile in-session context, pointers, and open goals — to thread.<agent>.md in the current project dir.
+description: Leave a thread for the next session on this topic — volatile in-session context, pointers, and open goals — to thread.<agent>.md in the current project dir.
 ---
 
 # /thread
 
-Write a baton for the next session on this topic, from the mold at
+Leave a thread for the next session on this topic, from the mold at
 `~/workspace/.claude/templates/THREAD.tmp.md`, to `<current project dir>/thread.<agent-name>.md`
 — the project or sketch directory the session has been working in, not the launch root.
 
@@ -23,6 +23,6 @@ substrate so it can retire itself.
 *Goals that outlive the session go in `<current project dir>/.claude/STICKY.md`.*
 
 ## Rules
-- One baton per agent per project. Overwrite an existing one rather than adding a second.
-- The baton is deleted by whoever reads it. Its existence means a handoff is pending, so a
-  consumed baton left behind lies. Nothing is lost — the work itself is in git.
+- One thread per agent per project. Overwrite an existing one rather than adding a second.
+- The thread is deleted by whoever picks it up. Its existence means a thread is still
+  waiting, so one left behind after it is read lies. Nothing is lost — the work is in git.

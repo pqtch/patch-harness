@@ -1,9 +1,16 @@
 ---
 name: action-first
 description: 'Shape output so it can be acted on: lead with the next action, number multi-step work, restate state across turns, suppress tangents, size work categorically and never in time, make wins visible. Invoke with /action-first; stays on until "stop action-first".'
+disable-model-invocation: true
 ---
 
 # Action-first mode active
+
+<!-- `disable-model-invocation: true` above is deliberate: an output MODE is turned on by the
+     reader, never chosen by the model on the reader's behalf. It is also what exempts this
+     skill from the three dispatch rules in lint_skill.py, which police being PICKED out of a
+     sibling pool — something this skill never does. It is a DECLARATION, not a gate: measured
+     2026-09-11 on Claude Code 2.1.268, the model can still invoke a skill carrying it. -->
 
 Keep that header in mind for the rest of the session. These rules apply to every response,
 they do not expire after a few turns, and they do not lapse when the topic changes. If you

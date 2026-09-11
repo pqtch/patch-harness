@@ -2,15 +2,18 @@
 """lint_skill.py — mechanical validator for a Claude Code skill directory.
 
 Usage:
-    python3 lint_skill.py <skill-dir> [--pool <installed-skills-dir>]
+    python3 lint_skill.py <skill-dir | skill-dir/SKILL.md> [--pool <installed-skills-dir>]
 
 Checks (ERROR = must fix, exit 1; WARN = judgment call, exit 0):
   frontmatter   name/description present, name regex + <=64, description <=1024, no XML tags
   house rules   description carries "use when" AND "do not use" (mandatory here — sibling
-                pools make pushy descriptions steal dispatch without the exclusion clause)
+                pools make pushy descriptions steal dispatch without the exclusion clause).
+                SKIPPED for `disable-model-invocation: true` — a user-only skill is typed,
+                never picked, so a dispatch clause on it describes nothing.
   third person  heuristic POV check on the description
   body          SKILL.md <500 lines (warn >300)
   evidence      EVIDENCE.md present with non-placeholder RED + Dispatch test sections
+                (also skipped for user-only skills, same reason)
   refs          every relative .md link resolves, max one level deep from SKILL.md;
                 reference files >100 lines should open with a heading/TOC
   pool overlap  (--pool) token-overlap of description vs each sibling skill's description;
@@ -52,6 +55,27 @@ def parse_frontmatter(text, label):
     return fields
 
 
+def is_user_only(fm):
+    """A skill the model can never self-trigger — `disable-model-invocation: true`.
+
+    The three dispatch rules ("use when", "do not use for", EVIDENCE.md's dispatch test) all
+    police one thing: being PICKED correctly out of a pool of siblings. A user-only skill is
+    never picked — it is typed. Applying them anyway makes a skill carry clauses describing
+    dispatch it does not do, which is decoration, and decoration in a linter teaches the
+    reader to ignore it. The exemption is mechanical and narrow: it keys on a real Claude Code
+    frontmatter flag, not on a judgment about what the skill is for.
+
+    The flag is a DECLARATION, not a gate: measured 2026-09-11 on Claude Code 2.1.268, a
+    session asked to invoke a skill carrying `disable-model-invocation: true` did so without
+    error (docs/GUIDE.md). That does not weaken the exemption — the linter is reading the
+    author's stated intent, which is exactly what a linter can read — but do not write
+    anywhere that the flag stops the model, because today it does not.
+
+    Everything else still applies — name, description length, POV, body size, links.
+    """
+    return str(fm.get("disable-model-invocation", "")).strip().lower() == "true"
+
+
 def check_frontmatter(fm):
     name = fm.get("name", "")
     desc = fm.get("description", "")
@@ -77,11 +101,12 @@ def check_frontmatter(fm):
     if re.search(r"<[^>]+>", desc):
         err("description: contains XML/angle-bracket tags")
     low = desc.lower()
-    if "use when" not in low and "use this when" not in low:
-        err('description: no "use when …" clause — dispatch depends on it')
-    if "do not use" not in low and "don't use" not in low:
-        err('description: no "do not use for …" clause — mandatory house rule '
-            "(sibling pools; see skill-author references/description-craft.md)")
+    if not is_user_only(fm):
+        if "use when" not in low and "use this when" not in low:
+            err('description: no "use when …" clause — dispatch depends on it')
+        if "do not use" not in low and "don't use" not in low:
+            err('description: no "do not use for …" clause — mandatory house rule '
+                "(sibling pools; see skill-author references/description-craft.md)")
     # POV heuristic — warn, since exemplar text can legitimately quote these
     if re.search(r"^(i|you)\b|\byou can\b|\bi can\b|\bhelps you\b", low):
         warn("description: sounds first/second person — write third person "
@@ -132,12 +157,14 @@ PLACEHOLDER = re.compile(
 )
 
 
-def check_evidence(skill_dir):
+def check_evidence(skill_dir, fm):
     """RED + dispatch test must leave an artifact — a gate with no record is prose.
 
     Mirrors the empty-report rule: degenerate content validates against any schema, so a
     section that exists but says nothing is a FAILURE, not a pass.
     """
+    if is_user_only(fm):
+        return  # user-only: there is no dispatch to record. See is_user_only().
     ev = skill_dir / "EVIDENCE.md"
     if not ev.exists():
         err("EVIDENCE.md: missing — RED (the observed failure, or the seed run for a "
@@ -199,6 +226,10 @@ def main():
         print(__doc__)
         sys.exit(2)
     skill_dir = Path(args[0])
+    # Accept the SKILL.md itself as well as its directory. Pointing the linter at the file is
+    # the first thing anyone tries, and the old failure was "…/SKILL.md/SKILL.md not found".
+    if skill_dir.name == "SKILL.md":
+        skill_dir = skill_dir.parent
     pool_dir = args[args.index("--pool") + 1] if "--pool" in args else None
 
     skill_md = skill_dir / "SKILL.md"
@@ -211,7 +242,7 @@ def main():
     check_frontmatter(fm)
     check_body(skill_md, text)
     check_reference_files(skill_dir)
-    check_evidence(skill_dir)
+    check_evidence(skill_dir, fm)
     if pool_dir:
         check_pool_overlap(fm, skill_dir, pool_dir)
 

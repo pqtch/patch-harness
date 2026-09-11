@@ -12,8 +12,13 @@
 #   a NOTE        yes — the type decides WHERE the file lands (templates/README.md)
 #   everything else  no. `type: design` on a design doc has never routed anything.
 #
-# So this checks the two that do work and is deliberately silent about the rest. Closing a
-# vocabulary nothing reads would be enforcing tidiness, not correctness.
+# So this checks those two and is deliberately silent about the rest. Closing a vocabulary
+# nothing reads would be enforcing tidiness, not correctness.
+#
+# ASYMMETRY, stated because it is load-bearing: the memory vocabulary is ENFORCED — a lane
+# file must carry one of four values. The note vocabulary is NOT, and cannot be: a note is
+# identified by its own frontmatter, so an illegal note type looks exactly like a legal
+# free-text type on a non-note. What is checked about notes instead is under vocabulary B.
 #
 # NEVER fails its caller — a warning, not a gate. Always exits 0, same rule as check-pointers.
 set -u
@@ -22,7 +27,6 @@ set -u
 ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)}"
 
 MEM_OK="identity feedback project reference"
-NOTE_OK="lesson reference finding note"
 
 in_set() { case " $2 " in *" $1 "*) return 0;; *) return 1;; esac; }
 
@@ -49,20 +53,39 @@ main() {
 
   # ── vocabulary B: notes ─────────────────────────────────────────────────────
   # A NOTE is identified by its own frontmatter, not its path — notes live wherever their
-  # subject lives. So: any file already claiming a NOTE-vocabulary type must claim a legal
-  # one. A file with some other type is not a note and is not this check's business.
+  # subject lives. That has a consequence this check states plainly instead of papering over:
+  # an ILLEGAL note type is indistinguishable from a legal free-text type on a file that is
+  # not a note, so `type: banana` cannot be reported, and is not.
+  #
+  # A previous revision pretended otherwise. It filtered to the four legal values and then
+  # tested membership in the same four, so the branch could never fire — the check printed
+  # "vocabularies OK" while examining nothing. Found 2026-09-11 by planting `type: bogus-kind`
+  # and watching nothing happen; docs/incidents.md #6 is the same shape, twice now.
+  #
+  # What IS checkable about a note is checked, and nothing else:
+  #   1. an UNFILLED mold — `type:` still carrying the `<angle bracket>` placeholder.
+  #   2. `## Measured` on a type other than `finding`. templates/README.md makes that section
+  #      finding-only and the other three molds say to delete it.
   while IFS= read -r f; do
     case "$f" in .claude/agent-memory/*|.claude/templates/*|_ops/archive/*|*-repo/*) continue;; esac
     t="$(sed -n 's/^type: *//p' "$f" | head -1)"
     [ -n "$t" ] || continue
-    case "$t" in lesson|reference|finding|note) ;; *) continue;; esac
-    in_set "$t" "$NOTE_OK" || { bad=$((bad+1)); out="$out\n  $f — type: $t"; }
+    case "$t" in
+      *'<'*'>'*)
+        bad=$((bad+1)); out="$out\n  $f — type: $t (unfilled mold placeholder — pick one value)"; continue ;;
+    esac
+    case "$t" in
+      lesson|reference|note)
+        if grep -q '^## Measured' "$f" 2>/dev/null; then
+          bad=$((bad+1)); out="$out\n  $f — type: $t carries a '## Measured' section, which is \`finding\`-only (delete it)"
+        fi ;;
+    esac
   done < <(find . -name '*.md' -type f -not -path './.git/*' 2>/dev/null | sed 's|^\./||')
 
   if [ "$bad" -eq 0 ]; then
     echo "check-types: type: vocabularies OK."
   else
-    echo "check-types: $bad file(s) outside a closed vocabulary:"
+    echo "check-types: $bad file(s) to fix:"
     printf "%b\n" "$out"
   fi
   return 0

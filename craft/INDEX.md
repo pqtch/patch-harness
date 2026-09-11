@@ -1,9 +1,14 @@
 # craft/ — specialist skills
 
 One directory per specialist. A specialist's skills live at `craft/<name>/.claude/skills/`
-and are **discovered by walking** — they attach only once a file under that directory is
-touched, which is why every specialist def instructs it to read `craft/<name>/CLAUDE.md`
-before beginning. Skip that and the specialist silently has no skills.
+and are **discovered by walking** — they attach the first time a file under that directory is
+opened with the **Read or Edit tool**, which is why every specialist def instructs it to read
+`craft/<name>/CLAUDE.md` before beginning. Skip that and the specialist silently has no skills.
+
+**Bash does not count.** MEASURED 2026-09-11, Claude Code 2.1.268: `cat craft/<name>/CLAUDE.md`
+attaches nothing; the Read tool on the same file attaches the pool. A bash-first session that
+follows the instruction with `cat` has followed it and gained nothing, with no error either
+way. `~/workspace/docs/GUIDE.md`, "Skills".
 
 ## Scope
 | scope | lives at | who gets it |

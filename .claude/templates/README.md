@@ -13,7 +13,7 @@ against) live in this README, not in the files themselves.
 | `CLAUDE.tmp.md` | routing table + brief | `<dir>/CLAUDE.md` |
 | `INDEX.tmp.md` | routing table, read on demand | `<dir>/INDEX.md` |
 | `STICKY.tmp.md` | project to-do / one-liner ideas | `<dir>/.claude/STICKY.md` |
-| `THREAD.tmp.md` | the handoff between two sessions on one topic | `projects/<p>/thread.<agent>.md` |
+| `THREAD.tmp.md` | the loose context two sessions on one topic share | `projects/<p>/thread.<agent>.md` |
 | `JOURNAL.tmp.md` | a dated record of sessions from a particular day | `_ops/journal/<YYYY-MM-DD>.md` |
 | `NOTE.tmp.md` | one atomic thing — a lesson, reference, finding, or note | next to what it is about; `_ops/inbox/<slug>.md` only when unfiled |
 | `PLAN.tmp.md` | a multi-phase plan | `_ops/plans/<slug>.md` |
@@ -50,11 +50,11 @@ the fix. An agent may read it to CHOOSE what to do, never to KNOW what is true.
 Written only when clearing a session that the next session will
 continue, at `projects/<p>/thread.<agent>.md`. The SessionStart hook injects it when it
 exists; the file's own header instructs its deletion on read — its *existence* means a
-handoff is pending, so a consumed baton left behind lies. (Hardening option, unruled:
+thread is still waiting, so one left behind after it is read lies. (Hardening option, unruled:
 the hook renames to `.consumed` on inject instead of trusting the instruction —
 crash-safe and mechanical.) Content is only a blurb + pointers + a to-do list; the
-record of what happened lives in transcripts + per-session diffs — nothing in a baton needs
-to survive. A baton older than a few days is stale: the reader distrusts it. Write to-dos as TASK LINES — an outcome plus its status; an
+record of what happened lives in transcripts + per-session diffs — nothing in a thread needs
+to survive. A thread older than a few days is stale: the reader distrusts it. Write to-dos as TASK LINES — an outcome plus its status; an
 instruction ("remember to X") re-fires forever and never retires itself.
 
 ### JOURNAL.tmp.md

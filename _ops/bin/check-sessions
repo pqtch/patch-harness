@@ -8,8 +8,12 @@ set -u
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 [ $# -ge 1 ] || { echo "usage: check-sessions <regex> [-n N]" >&2; exit 2; }
 Q="$1"; N=20; [ "${2:-}" = "-n" ] && N="${3:-20}"
-T="$ROOT/.claude-config/projects"; SIDE="$ROOT/.claude-config/session-specialists.tsv"
+# Honour a relocated config dir, same as check-digest — otherwise a workspace whose config
+# dir lives elsewhere reports nothing rather than saying it looked in the wrong place.
+CFG="${CLAUDE_CONFIG_DIR:-$ROOT/.claude-config}"
+T="$CFG/projects"; SIDE="$CFG/session-specialists.tsv"
 command -v jq >/dev/null || { echo "check-sessions: jq required" >&2; exit 2; }
+[ -d "$T" ] || { echo "check-sessions: no transcripts at $T — config dir not relocated? See SETUP.md." >&2; exit 0; }
 for f in $(ls -t "$T"/*/*.jsonl 2>/dev/null); do
   id="$(basename "$f" .jsonl)"
   hit="$(jq -r 'select(.type=="user" or .type=="assistant") | .message.content | if type=="string" then . else (.[]? | select(.type=="text") | .text) end' "$f" 2>/dev/null | grep -m1 -iE -- "$Q")" || continue

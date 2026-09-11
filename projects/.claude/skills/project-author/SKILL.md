@@ -1,6 +1,6 @@
 ---
 name: project-author
-description: Use when creating a new project.
+description: Creates a new project folder under `~/workspace/projects/` to the shape this workspace expects — `CLAUDE.md` routing brief, `.claude/STICKY.md`, an `INDEX.md` row — and, for an external repo, the shell-plus-clone layout with its `.gitignore` line written BEFORE the clone. Use when starting a new piece of persistent work, cloning an existing repo into this workspace, promoting a sketch to a project, or when a project folder is missing its brief or its ignore line. Do not use for a throwaway investigation — that is a `sketch/` directory, which needs no scaffolding — or for authoring skills or agent defs (skill-author, agent-author).
 ---
 # project-author
 Use this skill to create a new project under `~/workspace/projects/`.

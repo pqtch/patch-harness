@@ -2,14 +2,14 @@
 
 | Hook | Event | Job |
 |---|---|---|
-| `sessionstart/thread/thread_delivery.py` | `SessionStart` | injects and deletes the baton (`thread.<agent>.md`); injects the specialist's `LAST.md` brief (kept) and its `_ops/inbox/proposals.<name>.md` (deleted) — the objective side, written by `check-digest` |
-| `sessionstart/session_register.py` | `SessionStart` | appends `session_id → specialist` to `.claude-config/session-facets.tsv`; transcripts do not record the agent, this is the only join |
+| `sessionstart/thread/thread_delivery.py` | `SessionStart` | injects and deletes a waiting thread (`thread.<agent>.md`); injects the specialist's `LAST.md` brief (kept) and its `_ops/inbox/proposals.<name>.md` (deleted) — the objective side, written by `check-digest` |
+| `sessionstart/session_register.py` | `SessionStart` | appends `session_id → specialist` to `.claude-config/session-specialists.tsv`; transcripts do not record the agent, this is the only join |
 | `_ops/bin/check-digest` | `SessionEnd` (background) and `/wrap` | the objective record of the session: journal section, proposals, LAST brief. Writes those three and nothing else |
 | `pretooluse/gitlink_guard.sh` | `PreToolUse` (Bash) | refuses a `git commit` that would stage a gitlink (mode 160000) — layer 2; layer 1 is the `.git/hooks/pre-commit` that `setup.sh` installs |
 | `pretooluse/readonly_guard.sh` | `PreToolUse` (Bash) | refuses a Bash command that would mutate a `p.*` file — the half of rule 4 the `Edit(p.*)` permission cannot see |
 | `pretooluse/commit_scope_guard.sh` | `PreToolUse` (Bash) | refuses `git add <paths> && git commit` when the index already holds files outside those paths — `docs/incidents.md` #3, which happened twice |
 
-All four are registered in `~/workspace/.claude/settings.json` and resolve through
+All five hooks above that Claude Code fires are registered in `~/workspace/.claude/settings.json` and resolve through
 `$CLAUDE_PROJECT_DIR`, so nothing here carries an absolute path.
 
 **Few hooks, deliberately.** Hooks are answers: build the substrate, run it, and let friction
@@ -28,5 +28,5 @@ nothing; two of the checks in this tree shipped a bug that only a planted failur
 is run at every wrap.
 
 Before writing one, read `~/workspace/docs/harness-hooks.md` — the event table (what can
-block, what can inject) and the three failure modes, one of which destroyed a baton in
+block, what can inject) and the three failure modes, one of which destroyed a session thread in
 testing.

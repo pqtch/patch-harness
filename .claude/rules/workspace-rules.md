@@ -31,7 +31,13 @@
    The test for whether a vocabulary is real: *does anything behave differently based on the
    value?* Both of these do. A `type:` that nothing reads stays free text and nobody pretends
    it is governed. Closing a vocabulary nothing reads is enforcing tidiness, not correctness.
-   Checked by `~/workspace/_ops/bin/check-types`.
+
+   **Only one of the two is enforceable, and `~/workspace/_ops/bin/check-types` says which.**
+   A memory lane file is identified by its PATH, so a bad value there is reportable and is
+   reported. A note is identified by its own frontmatter, so an illegal note type is
+   indistinguishable from a legal free-text type on a file that is not a note — `type: banana`
+   cannot be caught and the check does not pretend to. What it checks about notes instead is
+   an unfilled mold placeholder, and a `## Measured` section on a type other than `finding`.
 
 8. **Git, as it is actually used here.**
    - **Agents commit.** At natural boundaries, with a real message, without being asked. The

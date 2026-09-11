@@ -1,8 +1,9 @@
 # projects/ — committed work
 
 One folder per project. A project is where knowledge about that project lives; this index
-only points. To create one, use the `project-author` skill (it loads on touching anything
-under `projects/`).
+only points. To create one, use the `project-author` skill — it attaches the first time a file under
+`projects/` is opened with the **Read tool** (Bash `cat` does not attach it; measured, see
+`~/workspace/docs/GUIDE.md`).
 
 ## Index
 | Project | Kind | Clone lives at | Remote |

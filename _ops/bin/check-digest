@@ -25,7 +25,7 @@
 # Runs the model with `claude -p` from `_ops/processes/` — where scheduled processes stand.
 # That cwd is inside the repo but settings.json is read for the launch directory only and
 # does not cascade from a subdirectory, so the workspace's hooks never load: a headless child
-# must not consume a baton or register itself as a session. MEASURED 2026-09-10, Claude Code
+# must not pick up a thread or register itself as a session. MEASURED 2026-09-10, Claude Code
 # 2.1.268: a `claude -p` from such a subdirectory added no line to the session sidecar.
 # (`--bare` would be the obvious flag; it also skips keychain reads and cannot log in.)
 # CLAUDE_CODE_AGENT is unset for the same reason the launcher exports nothing: it is
@@ -38,8 +38,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CFG="${CLAUDE_CONFIG_DIR:-$ROOT/.claude-config}"
 SIDE="$CFG/session-specialists.tsv"
 MODEL="${WS_DIGEST_MODEL:-sonnet}"
-led() { :; }
-die() { echo "check-digest: $*" >&2; led error "${ID:-?}" "$*"; exit 0; }
+die() { echo "check-digest: $*" >&2; exit 0; }
 
 ID="${1:-${CLAUDE_CODE_SESSION_ID:-}}"
 if [ "$ID" = "--last" ]; then
@@ -106,6 +105,5 @@ if [ -n "$P" ] && ! printf '%s' "$P" | grep -qix 'none'; then
   printf '\n### from session %s (%s)\n%s\n' "$ID" "$DATE" "$(printf '%s' "$P" | sed -e 's/[[:space:]]*$//')" >> "$PF"
 fi
 printf '# LAST — %s\n\n_session %s, %s. Overwritten by check-digest after every session; not a memory._\n\n%s\n' "$ROLE" "$ID" "$DATE" "$(printf '%s' "$L" | sed -e 's/[[:space:]]*$//')" > "$ROOT/.claude/agent-memory/$ROLE/LAST.md"
-led pass "$ID" "$ROLE $TURNS turns -> journal, $( [ -n "$P" ] && ! printf '%s' "$P" | grep -qix none && echo proposals, )LAST"
 echo "check-digest: $ID ($ROLE, $TURNS turns) -> $JOURNAL, $( [ -n "$P" ] && ! printf '%s' "$P" | grep -qix none && echo "_ops/inbox/proposals.$ROLE.md, ").claude/agent-memory/$ROLE/LAST.md"
 exit 0

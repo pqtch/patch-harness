@@ -10,9 +10,10 @@ is the whole of that. This file is the architecture.
 
 Five words this tree uses as terms of art, so they are not a surprise below: a **lane** is one
 specialist's memory directory; a **mold** is a template that is exactly the file it produces;
-a **baton** is a one-shot handoff file between two sessions on the same topic, deleted when
-read; **on touch** means "when any file in that directory is read or edited" — the moment
-Claude Code loads that directory's `CLAUDE.md` and skills; a **rung** is one level of the
+a **thread** is a one-shot file left in a project directory for the next session on that
+topic and deleted when it is picked up; **on touch** means "when a file in that directory is opened with the Read or Edit **tool**"
+— the moment Claude Code loads that directory's `CLAUDE.md` and skills. Bash `cat` does not
+count, measured; `docs/GUIDE.md`; a **rung** is one level of the
 guard ladder, explained under Architecture.
 
 ## The idea in one paragraph
@@ -38,8 +39,8 @@ refuses actually happened, with its blind spot named in its header.
 │   ├── agent-memory/<name>/   one flat lane per specialist; MEMORY.md is the resident index
 │   ├── skills/                root skills — only what would make output WRONG if absent
 │   ├── commands/              /wrap and /thread — the session lifecycle
-│   ├── hooks/                 the two guards and the baton hook, registered in settings.json
-│   ├── templates/             twelve molds; a mold is exactly the file it produces
+│   ├── hooks/                 the three guards and the two boot hooks, registered in settings.json
+│   ├── templates/             eleven molds; a mold is exactly the file it produces
 │   ├── STICKY.md · USER.md    volatile to-dos; who the owner is
 │   └── settings.json          env, permissions, hooks — every entry carries a _note
 ├── .claude-config/            the Claude Code config dir, relocated here by setup.sh so continuity is in git
@@ -57,7 +58,7 @@ might not read. What ships at each rung:
 | Rung | What | Where |
 |---|---|---|
 | permission | `p.*` files are read-only to every editing tool | `settings.json` |
-| hook | a Bash `sed -i` on a `p.*` file · a commit staging a gitlink · a baton delivered exactly once | `.claude/hooks/` |
+| hook | a Bash `sed -i` on a `p.*` file · a commit staging a gitlink · a thread picked up exactly once | `.claude/hooks/` |
 | check | dead pointers · `type:` outside its vocabulary · private content in a public repo (`check-leak`, shipped but not installed until you have a public repo) | `_ops/bin/check-*` |
 | rule | eight rules, one screen | `.claude/rules/` |
 | memory | what binds one specialist and nobody else | `.claude/agent-memory/` |
