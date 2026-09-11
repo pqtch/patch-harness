@@ -7,6 +7,7 @@ source of truth about a project — the project owns that.
 | Path | Description |
 |---|---|
 | `~/workspace/_ops/bin/` | `ws` (the launcher), `setup.sh`, the three checks, `check-selftest`, `check-digest` (the objective memory process), and the recall family `check-recall` / `check-sessions` / `check-where` / `check-rows` (`.claude/rules/recall.md`) |
+| `~/workspace/_ops/processes/` | where scheduled processes run from — `check-digest` launches its model call here so no workspace hook loads for the child |
 | `~/workspace/_ops/scripts/` | one-job scripts, run by hand or by a hook <!-- may-be-absent --> |
 | `~/workspace/_ops/docs/` | design records — the *why* behind YOUR structural decisions (the boilerplate's own are at `~/workspace/docs/`) |
 | `~/workspace/_ops/journal/` | one dated record per day, one section per session, append-only, written by `check-digest` |

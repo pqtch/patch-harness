@@ -22,11 +22,14 @@
 #
 # Idempotent: if the journal already carries a section for this session id, nothing is
 # written. Never commits — the wrap commits. Fails open: any error prints and exits 0.
-# Runs the model with `claude -p` from an EMPTY scratch cwd, so the workspace's settings.json —
-# and therefore its hooks — never load: a headless child must not consume a baton or register
-# itself as a session. (`--bare` would be the obvious flag; it also skips keychain reads and
-# cannot log in. Measured 2026-09-10, Claude Code 2.1.268.) CLAUDE_CODE_AGENT is unset for the same
-# reason the launcher exports nothing: it is inherited, and this child is nobody.
+# Runs the model with `claude -p` from `_ops/processes/` — where scheduled processes stand.
+# That cwd is inside the repo but settings.json is read for the launch directory only and
+# does not cascade from a subdirectory, so the workspace's hooks never load: a headless child
+# must not consume a baton or register itself as a session. MEASURED 2026-09-10, Claude Code
+# 2.1.268: a `claude -p` from such a subdirectory added no line to the session sidecar.
+# (`--bare` would be the obvious flag; it also skips keychain reads and cannot log in.)
+# CLAUDE_CODE_AGENT is unset for the same reason the launcher exports nothing: it is
+# inherited, and this child is nobody.
 #
 # Usage: check-digest [session-id]        default: $CLAUDE_CODE_SESSION_ID
 #        check-digest --last              the most recent session in the sidecar that is not this one
@@ -85,7 +88,7 @@ TRANSCRIPT (USER/ASSISTANT text only):
 $TEXT"
 
 if [ -n "${WS_DIGEST_FAKE_OUT:-}" ]; then OUT="$(cat "$WS_DIGEST_FAKE_OUT")"; else   # test seam: check-selftest plants model output
-ERR="$(mktemp)"; SCRATCH="$(mktemp -d)"; OUT="$(cd "$SCRATCH" && printf '%s' "$PROMPT" | env -u CLAUDE_CODE_AGENT claude -p --model "$MODEL" --output-format text 2>"$ERR")" || die "model call failed: $(head -c 300 "$ERR")"; rm -rf "$ERR" "$SCRATCH"; fi
+ERR="$(mktemp)"; RUNDIR="$ROOT/_ops/processes"; [ -d "$RUNDIR" ] || die "no $RUNDIR to run from"; OUT="$(cd "$RUNDIR" && printf '%s' "$PROMPT" | env -u CLAUDE_CODE_AGENT claude -p --model "$MODEL" --output-format text 2>"$ERR")" || die "model call failed: $(head -c 300 "$ERR")"; rm -f "$ERR"; fi
 J="$(printf '%s\n' "$OUT" | awk '/^=== JOURNAL ===/{f=1;next} /^=== PROPOSALS ===/{f=0} f')"
 P="$(printf '%s\n' "$OUT" | awk '/^=== PROPOSALS ===/{f=1;next} /^=== LAST ===/{f=0} f')"
 L="$(printf '%s\n' "$OUT" | awk '/^=== LAST ===/{f=1;next} f')"

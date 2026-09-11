@@ -126,7 +126,7 @@ for lane in "$ROOT"/.claude/agent-memory/*/; do
 done
 
 # ── 14. check-digest write-set, with planted model output (no model call) ──────────────
-DG="$T/dg"; mkdir -p "$DG/.claude-config/projects/x" "$DG/_ops/bin" "$DG/.claude/agent-memory"
+DG="$T/dg"; mkdir -p "$DG/.claude-config/projects/x" "$DG/_ops/bin" "$DG/_ops/processes" "$DG/.claude/agent-memory"
 cp "$BIN/check-digest" "$DG/_ops/bin/"; git -C "$DG" init -q >/dev/null
 printf '{"type":"user","timestamp":"2026-01-02T03:04:05Z","message":{"content":"hello"}}\n{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}\n' > "$DG/.claude-config/projects/x/sid1.jsonl"
 printf 'sid1\tcenter\t2026-01-02T03:04:05Z\t%s\tstartup\n' "$DG" > "$DG/.claude-config/session-specialists.tsv"
