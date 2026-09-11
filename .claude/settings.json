@@ -21,6 +21,10 @@
           {
             "type": "command",
             "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/sessionstart/thread/thread_delivery.py\"; [ -f \"$H\" ] && python3 \"$H\" || exit 0"
+          },
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/.claude/hooks/sessionstart/session_register.py\"; [ -f \"$H\" ] && python3 \"$H\" || exit 0"
           }
         ]
       }
@@ -53,7 +57,18 @@
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"${CLAUDE_PROJECT_DIR:-$PWD}\"; H=\"$D/_ops/bin/check-digest\"; [ -x \"$H\" ] && (setsid nohup \"$H\" >/dev/null 2>&1 &); exit 0"
+          }
+        ]
+      }
     ]
   },
-  "_note_permissions": "Deny-only, deliberately. Rule 4 marks p.* files as the owner's and read-only; until 2026-08-27 that was prose asking a model to behave. ONLY Edit(path) RULES WORK: the harness prints a startup warning that Write(...) and NotebookEdit(...) path rules 'are not matched by file permission checks' — an Edit rule already covers every file-editing tool. Do not add a Write(...) path rule for anything. KNOWN HOLE, half-closed: sessions that run bash-first make `sed -i p.foo.md` a Bash call, which no Edit rule sees — that half is the readonly_guard PreToolUse hook above, the same rung the gitlink guard sits on. rm -rf scoping is the same shape: a permission rule matches a command prefix, not a resolved path, so 'destructive outside the workspace' is not expressible here."
+  "_note_permissions": "Deny-only, deliberately. Rule 4 marks p.* files as the owner's and read-only; until 2026-08-27 that was prose asking a model to behave. ONLY Edit(path) RULES WORK: the harness prints a startup warning that Write(...) and NotebookEdit(...) path rules 'are not matched by file permission checks' — an Edit rule already covers every file-editing tool. Do not add a Write(...) path rule for anything. KNOWN HOLE, half-closed: sessions that run bash-first make `sed -i p.foo.md` a Bash call, which no Edit rule sees — that half is the readonly_guard PreToolUse hook above, the same rung the gitlink guard sits on. rm -rf scoping is the same shape: a permission rule matches a command prefix, not a resolved path, so 'destructive outside the workspace' is not expressible here.",
+  "_note_sessionend": "SessionEnd: runs check-digest in the BACKGROUND (setsid nohup) so exit is never blocked by a model call; CLAUDE_CODE_SESSION_ID is inherited by the hook process, which is how the digest knows which session ended. /wrap also runs it, in the foreground; the digest is idempotent per session so both firing is harmless. The objective side of memory is a process, not an agent."
 }

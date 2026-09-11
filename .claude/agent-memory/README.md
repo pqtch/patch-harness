@@ -16,6 +16,26 @@ project**; a `project` memory is a pointer plus the specialist's own notes on wo
 
 Craft is not a memory type. Procedures are skills: `~/workspace/craft/<specialist>/`.
 
+## Subjective and objective — the line
+Everything in a lane is **subjective**: written by the specialist, in session, with the context.
+The **objective** side is written by a process that has only the record — `check-digest`,
+from the transcript and the session's commits — and it lands in three places, none of them
+a memory:
+- `_ops/journal/<date>.md` — the record, one section per session, permanent, greppable.
+- `_ops/inbox/proposals.<specialist>.md` — "you might want to keep this resident," each bullet
+  with its evidence quoted. Injected at the specialist's next boot and deleted. The specialist's
+  decision is **filing, not verification** — is it mine, do I already have it (`check-recall`)
+  — and what it accepts it writes into its lane in its own words. Dropped is not lost: the
+  journal has it.
+- `LAST.md` in the lane — a six-line brief of the last session as this specialist, overwritten
+  every time, injected at boot, **not a memory** (`check-types` skips it). The `blank/` lane
+  holds only this file, for un-agented sessions.
+
+Why the split: what hurt the identity layer upstream was "bloat of context and
+disorganization between objective and subjective things." Lanes stay small and owned; the
+record stays outside them and complete.
+
+
 ## The two-level shape does the depth control
 `MEMORY.md` is resident — it is injected into context without being read. Everything else loads
 only when a trigger in the index reaches for it. So a subagent gets the index and stays shallow

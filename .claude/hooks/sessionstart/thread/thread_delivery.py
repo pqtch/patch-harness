@@ -119,14 +119,50 @@ def find_batons(root: str, filename: str) -> list:
     return sorted(hits)
 
 
+def read_last_and_proposals(root: str, lane: str, delete_proposals: bool) -> list:
+    """The two objective surfaces check-digest writes for this identity (the objective side).
+
+    LAST.md is injected and never deleted — it is overwritten by the next digest. The
+    proposals file is injected and DELETED, like a baton: the specialist accepts what is true into
+    its own lane in its own words, or drops it, and the journal keeps the record either way.
+    Deletion happens only when identity is authoritative (delete_proposals), for the same
+    reason a baton is never consumed on a guess.
+    """
+    out = []
+    last = os.path.join(root, ".claude", "agent-memory", lane, "LAST.md")
+    if os.path.isfile(last):
+        try:
+            with open(last, "r", encoding="utf-8", errors="replace") as fh:
+                out.append("## Last session, as " + lane + " (objective brief; mention it only if relevant)\n\n" + fh.read().rstrip())
+        except OSError:
+            pass
+    prop = os.path.join(root, "_ops", "inbox", "proposals." + lane + ".md")
+    if os.path.isfile(prop):
+        try:
+            with open(prop, "r", encoding="utf-8", errors="replace") as fh:
+                body = fh.read().rstrip()
+            out.append("## Proposals for your memory — objective, each with its evidence quoted (the file has been deleted; the journal keeps the record). Your decision is FILING, not verification: is it yours, and do you already have it? Run check-recall on each; write what is yours and new into your lane in your own words; drop the rest.\n\n" + body)
+            if delete_proposals:
+                os.remove(prop)
+        except OSError:
+            pass
+    return out
+
+
 def main() -> None:
     data, had_payload = read_stdin_json()
     agent = resolve_agent(data, had_payload)
-    if not agent:
-        return
-
     root = resolve_root(data)
     parts = []
+
+    # Blank sessions (payload present, no --agent) get the blank lane's brief and proposals.
+    # No baton search for them: batons are per-agent and this session is nobody.
+    if not agent:
+        if had_payload:
+            parts.extend(read_last_and_proposals(root, "blank", True))
+        if parts:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "\n\n".join(parts)}}))
+        return
     for path in find_batons(root, f"thread.{agent}.md"):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -141,15 +177,18 @@ def main() -> None:
         except OSError as exc:
             print(f"thread_delivery: could not delete {path}: {exc}", file=sys.stderr)
 
+    baton_count = len(parts)
+    parts.extend(read_last_and_proposals(root, agent, True))
     if not parts:
-        return  # No baton, no output. Silence is the normal case.
+        return  # No baton, no brief, no proposals. Silence is the normal case.
 
-    text = (
-        "A thread baton was waiting for you and has been delivered below. The file has "
-        "already been deleted — do not look for it, and do not delete it again. It is a "
-        "handoff, not a record: committed work is the source of truth.\n\n"
-        + "\n\n".join(parts)
-    )
+    text = "\n\n".join(parts)
+    if baton_count:
+        text = (
+            "A thread baton was waiting for you and has been delivered below. The file has "
+            "already been deleted — do not look for it, and do not delete it again. It is a "
+            "handoff, not a record: committed work is the source of truth.\n\n" + text
+        )
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",

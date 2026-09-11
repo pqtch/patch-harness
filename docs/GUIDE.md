@@ -23,7 +23,9 @@ is authoritative about it.
 | **brief** | `projects/<p>/CLAUDE.md` | stable; updated at wrap | law on touch | the session |
 | **sticky** | `projects/<p>/.claude/STICKY.md` | to-dos + one-liner ideas | least trusted, read on demand | the session |
 | **thread** | `projects/<p>/thread.<agent>.md` | ephemeral baton — deleted on pickup | handoff only | the closing session |
-| **journal** | `_ops/journal/<YYYY-MM-DD>.md` | one per day, append-only, forever | historical record | the session at wrap, or a maintenance run |
+| **journal** | `_ops/journal/<YYYY-MM-DD>.md` | one per day, one section per session, append-only | historical record | `check-digest`, from the transcript — objective |
+| **brief** (LAST) | `.claude/agent-memory/<name>/LAST.md` | overwritten every session | injected at boot; not a memory | `check-digest` |
+| **proposals** | `_ops/inbox/proposals.<name>.md` | until the next boot, then deleted | filing decision for the specialist | `check-digest` |
 | **note** | `_ops/inbox/<slug>.md` | distilled, pruned | durable law | whoever distilled it |
 
 **The session IS the record.** Every commit carries a `Session: <id>` trailer; `/wrap` closes

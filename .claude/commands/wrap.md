@@ -15,7 +15,9 @@ description: Close out a session — reconcile CLAUDE.md and STICKY.md against r
 | a to-do is done | cross it off; a to-do that outlived the session moves to STICKY |
 | a `CLAUDE.md` length flag | replace content with file pointers to reduce token cost |
 
-4. Commit all work from this session. Every commit carries a `Session: <id>` trailer, and the
+4. Run `~/workspace/_ops/bin/check-digest` — the objective record of this session: a journal
+   section, proposals for this specialist's next boot, and the LAST brief. It writes only
+   those three; it never touches a lane. Then commit all work from this session. Every commit carries a `Session: <id>` trailer, and the
    last one is the closing marker — its absence is the signal that a session was never
    wrapped.
 5. Run `~/workspace/_ops/bin/check-selftest` — it plants the failure every guard refuses and

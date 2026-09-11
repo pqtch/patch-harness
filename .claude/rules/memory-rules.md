@@ -77,6 +77,13 @@ project folder already says?**
 - Bad: anything already in context at startup — `MEMORY.md`, `CLAUDE.md`, the specialist's
   own def.
 
+## Objective memory is not written here
+A lane is subjective: the specialist writes it, in session. The record of what happened —
+journal, proposals, the `LAST.md` brief — is written by `check-digest` from the transcript,
+and none of it is a memory. What a specialist accepts from its proposals it rewrites in its
+own words; the test before writing is still the four questions above.
+`~/workspace/.claude/agent-memory/README.md`.
+
 ## Rules
 
 - **Follow pointers in memory.** If an entry names a path, open it — unless it is explicitly

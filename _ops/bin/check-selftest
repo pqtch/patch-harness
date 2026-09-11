@@ -103,5 +103,50 @@ echo "zed as a plain word" > "$L/l.md"; git -C "$L" add l.md
 expect 0 "leak: case-sensitive entry ignores the lowercase word" "$BIN/check-leak" --repo "$L" --list "$T/denylist.txt" --quiet
 expect 0 "leak: fails open with no wordlist" "$BIN/check-leak" --repo "$L" --list "$T/none.txt" --quiet
 
+# ── 12. skill-listing budget — the silent-degradation check ────────────────────────
+# Measured 2026-08-02: under budget pressure skill descriptions are SHORTENED, least-invoked
+# first; a truncated description keeps its slot but stops dispatching. Per-entry cap 1536
+# chars; listing budget 1% of the window. Nothing watched this until now.
+total=0; over=0
+while IFS= read -r sk; do
+  d="$(sed -n '/^---$/,/^---$/p' "$sk" | sed -n 's/^description: *//p' | head -1)"
+  n=${#d}; total=$((total+n)); [ "$n" -gt 1536 ] && { over=$((over+1)); bad "skills: description over 1536 chars in $sk ($n)"; }
+done < <(find "$ROOT/.claude/skills" "$ROOT/craft" -name SKILL.md 2>/dev/null)
+[ "$over" -eq 0 ] && ok "skills: no description over the per-entry cap"
+[ "$total" -lt 8000 ] && ok "skills: listing total ${total} chars, under a 200k-window 1% budget (~8000)" || bad "skills: listing total ${total} chars exceeds the 1% budget — descriptions will be silently truncated"
+
+# ── 13. lane bloat — the thing that hurt upstream ──────────────────────────
+# agent-memory/README.md: revisit the flat shape past ~15 files. And a MEMORY.md that is not
+# a short table of triggers is payload wearing a pointer's clothes. Warn, do not fail.
+for lane in "$ROOT"/.claude/agent-memory/*/; do
+  [ -f "$lane/MEMORY.md" ] || continue
+  n=$(find "$lane" -maxdepth 1 -name '*.md' ! -name MEMORY.md ! -name LAST.md | wc -l)
+  l=$(wc -l < "$lane/MEMORY.md")
+  if [ "$n" -gt 15 ] || [ "$l" -gt 40 ]; then echo "  warn  lane $(basename "$lane"): $n files, MEMORY.md $l lines — prune or fold"; else ok "lane $(basename "$lane"): $n files, index $l lines"; fi
+done
+
+# ── 14. check-digest write-set, with planted model output (no model call) ──────────────
+DG="$T/dg"; mkdir -p "$DG/.claude-config/projects/x" "$DG/_ops/bin" "$DG/.claude/agent-memory"
+cp "$BIN/check-digest" "$DG/_ops/bin/"; git -C "$DG" init -q >/dev/null
+printf '{"type":"user","timestamp":"2026-01-02T03:04:05Z","message":{"content":"hello"}}\n{"type":"assistant","message":{"content":[{"type":"text","text":"hi"}]}}\n' > "$DG/.claude-config/projects/x/sid1.jsonl"
+printf 'sid1\tcenter\t2026-01-02T03:04:05Z\t%s\tstartup\n' "$DG" > "$DG/.claude-config/session-specialists.tsv"
+printf '=== JOURNAL ===\nwe did a thing\n=== PROPOSALS ===\n- remember X — evidence: "hello"\n=== LAST ===\nyou were doing a thing\n' > "$T/fake.out"
+CLAUDE_CONFIG_DIR="$DG/.claude-config" WS_DIGEST_FAKE_OUT="$T/fake.out" "$DG/_ops/bin/check-digest" sid1 >/dev/null 2>&1
+grep -q "session sid1 — center" "$DG/_ops/journal/2026-01-02.md" 2>/dev/null && ok "digest: journal section appended" || bad "digest: no journal section"
+grep -q "remember X" "$DG/_ops/inbox/proposals.center.md" 2>/dev/null && ok "digest: proposals written with evidence" || bad "digest: no proposals"
+grep -q "you were doing a thing" "$DG/.claude/agent-memory/center/LAST.md" 2>/dev/null && ok "digest: LAST brief written" || bad "digest: no LAST"
+n=$(find "$DG" -path "$DG/.git" -prune -o -type f -newer "$T/fake.out" -print | grep -v -e journal/2026-01-02.md -e proposals.center.md -e LAST.md | wc -l)
+[ "$n" -eq 0 ] && ok "digest: wrote nothing outside its write-set" || bad "digest: wrote $n file(s) outside the write-set"
+CLAUDE_CONFIG_DIR="$DG/.claude-config" WS_DIGEST_FAKE_OUT="$T/fake.out" "$DG/_ops/bin/check-digest" sid1 2>/dev/null | grep -q "already digested" && ok "digest: idempotent per session" || bad "digest: re-digested a session"
+# ── 15. boot injection of LAST + proposals ───────────────────────────────────────────
+out="$(printf '{"agent_type":"center","cwd":"%s"}' "$DG" | CLAUDE_PROJECT_DIR="$DG" python3 "$HOOKS/sessionstart/thread/thread_delivery.py" 2>/dev/null | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)"
+printf '%s' "$out" | grep -q "you were doing a thing" && ok "boot: LAST brief injected" || bad "boot: LAST not injected"
+printf '%s' "$out" | grep -q "remember X" && [ ! -e "$DG/_ops/inbox/proposals.center.md" ] && [ -e "$DG/.claude/agent-memory/center/LAST.md" ] && ok "boot: proposals injected and deleted; LAST kept" || bad "boot: proposals handling wrong"
+# ── 16. session_register sidecar ─────────────────────────────────────────────────────
+printf '{"session_id":"sid2","agent_type":"researcher","cwd":"%s","source":"startup"}' "$DG" | CLAUDE_CONFIG_DIR="$DG/.claude-config" python3 "$HOOKS/sessionstart/session_register.py" 2>/dev/null
+grep -q $'^sid2\tresearcher\t' "$DG/.claude-config/session-specialists.tsv" && ok "register: session->specialist line appended" || bad "register: no sidecar line"
+printf 'garbage' | CLAUDE_CONFIG_DIR="$DG/.claude-config" python3 "$HOOKS/sessionstart/session_register.py" 2>/dev/null
+[ "$(grep -c '' "$DG/.claude-config/session-specialists.tsv")" -eq 2 ] && ok "register: appends nothing on garbage stdin" || bad "register: wrote on garbage"
+
 echo "check-selftest: $PASS passed, $FAIL failed."
 [ "$FAIL" -eq 0 ]

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# check-digest — the OBJECTIVE side of memory. Ruled 2026-09-10.
+#
+# Reads ONE session's record — its transcript (user and assistant text only) and the commits
+# carrying its `Session:` trailer — and hands them to a headless model that has none of the
+# session's context. What that model writes is objective by construction: it saw the record,
+# not the thinking. It writes exactly three things, and nothing else (the write-set):
+#
+#   1. _ops/journal/<date>.md                  APPEND a section for this session. The record.
+#   2. _ops/inbox/proposals.<specialist>.md         APPEND "you might want to remember" bullets.
+#                                              The specialist is shown these at its next boot and
+#                                              writes what it accepts into its OWN lane, in its
+#                                              own words, or drops them. Never written to a lane.
+#   3. .claude/agent-memory/<specialist>/LAST.md    OVERWRITE a <=6-line brief: what we were doing,
+#                                              where it stopped, what is open. Injected at the
+#                                              specialist's next boot. Blank sessions use the
+#                                              `blank` lane, which holds only this file.
+#
+# Subjective memory (identity, feedback, project, reference) stays the specialist's to write, in
+# session. This process only ever proposes. That is the line between a model that has the
+# context and one that has only the record.
+#
+# Idempotent: if the journal already carries a section for this session id, nothing is
+# written. Never commits — the wrap commits. Fails open: any error prints and exits 0.
+# Runs the model with `claude -p` from an EMPTY scratch cwd, so the workspace's settings.json —
+# and therefore its hooks — never load: a headless child must not consume a baton or register
+# itself as a session. (`--bare` would be the obvious flag; it also skips keychain reads and
+# cannot log in. Measured 2026-09-10, Claude Code 2.1.268.) CLAUDE_CODE_AGENT is unset for the same
+# reason the launcher exports nothing: it is inherited, and this child is nobody.
+#
+# Usage: check-digest [session-id]        default: $CLAUDE_CODE_SESSION_ID
+#        check-digest --last              the most recent session in the sidecar that is not this one
+set -u
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+CFG="${CLAUDE_CONFIG_DIR:-$ROOT/.claude-config}"
+SIDE="$CFG/session-specialists.tsv"
+MODEL="${WS_DIGEST_MODEL:-sonnet}"
+led() { :; }
+die() { echo "check-digest: $*" >&2; led error "${ID:-?}" "$*"; exit 0; }
+
+ID="${1:-${CLAUDE_CODE_SESSION_ID:-}}"
+if [ "$ID" = "--last" ]; then
+  ID="$(awk -F'\t' -v me="${CLAUDE_CODE_SESSION_ID:-}" '$1!=me {print $1}' "$SIDE" 2>/dev/null | tail -1)"
+fi
+[ -n "$ID" ] || die "no session id (pass one, or set CLAUDE_CODE_SESSION_ID)"
+command -v jq >/dev/null || die "jq required"
+command -v claude >/dev/null || die "claude not on PATH"
+
+T="$(ls "$CFG"/projects/*/"$ID".jsonl 2>/dev/null | head -1)"
+[ -f "$T" ] || die "no transcript for $ID"
+ROLE="$(awk -F'\t' -v s="$ID" '$1==s {print $2}' "$SIDE" 2>/dev/null | tail -1)"; ROLE="${ROLE:-blank}"
+DATE="$(jq -r 'select(.timestamp) | .timestamp' "$T" | head -1 | cut -c1-10)"; DATE="${DATE:-$(date -u +%F)}"
+JOURNAL="$ROOT/_ops/journal/$DATE.md"
+grep -qF "session $ID" "$JOURNAL" 2>/dev/null && { echo "check-digest: $ID already digested in $JOURNAL"; exit 0; }
+
+# ── the record ──
+TEXT="$(jq -r 'select(.type=="user" or .type=="assistant") | (.type|ascii_upcase) + ": " + (.message.content | if type=="string" then . else ([.[]? | select(.type=="text") | .text] | join("\n")) end)' "$T" 2>/dev/null | grep -v '^\(USER\|ASSISTANT\): *$')"
+[ -n "$TEXT" ] || die "transcript $ID has no user/assistant text"
+# cap: head + tail, so a long session keeps its opening ask and its ending state
+if [ "${#TEXT}" -gt 120000 ]; then TEXT="$(printf '%s' "$TEXT" | head -c 40000)"$'\n\n[... middle elided ...]\n\n'"$(printf '%s' "$TEXT" | tail -c 80000)"; fi
+COMMITS="$(git -C "$ROOT" log --format='%h %s' --grep="Session: $ID" 2>/dev/null)"
+STAT="$(git -C "$ROOT" log --format='' --stat --grep="Session: $ID" 2>/dev/null | grep -v '^$' | sort | uniq -c | sort -rn | head -40)"
+TURNS="$(printf '%s\n' "$TEXT" | grep -c '^USER: ')"
+
+PROMPT="You are writing the OBJECTIVE record of one working session between the owner of a workspace and an AI agent running as the role '$ROLE'. You have the transcript text and the commits; you do not have the agent's reasoning, and you must not invent it. Write only what the record supports. Be terse and concrete; name files and decisions; no praise, no filler.
+
+Output EXACTLY three sections with these headers on their own lines, nothing before the first header:
+
+=== JOURNAL ===
+Past tense, 5-15 lines. What was asked, what was produced (name the files/commits), what was decided and by whom, what was left open. This is appended to a dated, append-only journal.
+
+=== PROPOSALS ===
+0-6 bullets, each one thing the role '$ROLE' might want to keep RESIDENT across sessions: a correction or confirmation the owner gave about how to work, a ruling, a non-obvious finding. The role reading this later has NO memory of this session and will not go back to check, so every bullet MUST carry its evidence inline: end with — evidence: \"<the owner's or agent's exact words, <=25 words>\". Write NOTHING that the code or git history already teaches, and nothing without a quotable line. If nothing qualifies, write the single line: none
+
+=== LAST ===
+At most 6 short lines, present tense, addressed to the role as 'you': what you and the owner were working on, where it stopped, what is open or was being decided. This is injected at the role's next boot so it knows the last thing you did together.
+
+Session id: $ID   Date: $DATE   User turns: $TURNS
+Commits carrying this session's trailer:
+${COMMITS:-(none)}
+Files touched (count, path):
+${STAT:-(none)}
+
+TRANSCRIPT (USER/ASSISTANT text only):
+$TEXT"
+
+if [ -n "${WS_DIGEST_FAKE_OUT:-}" ]; then OUT="$(cat "$WS_DIGEST_FAKE_OUT")"; else   # test seam: check-selftest plants model output
+ERR="$(mktemp)"; SCRATCH="$(mktemp -d)"; OUT="$(cd "$SCRATCH" && printf '%s' "$PROMPT" | env -u CLAUDE_CODE_AGENT claude -p --model "$MODEL" --output-format text 2>"$ERR")" || die "model call failed: $(head -c 300 "$ERR")"; rm -rf "$ERR" "$SCRATCH"; fi
+J="$(printf '%s\n' "$OUT" | awk '/^=== JOURNAL ===/{f=1;next} /^=== PROPOSALS ===/{f=0} f')"
+P="$(printf '%s\n' "$OUT" | awk '/^=== PROPOSALS ===/{f=1;next} /^=== LAST ===/{f=0} f')"
+L="$(printf '%s\n' "$OUT" | awk '/^=== LAST ===/{f=1;next} f')"
+[ -n "$J" ] && [ -n "$L" ] || die "model output missing sections; nothing written. Raw: $(printf '%s' "$OUT" | head -c 300)"
+
+# ── the write-set, and only the write-set ──
+mkdir -p "$ROOT/_ops/journal" "$ROOT/_ops/inbox" "$ROOT/.claude/agent-memory/$ROLE"
+if [ ! -f "$JOURNAL" ]; then
+  printf -- '---\ndate: %s\nfocus: see the sessions below\ncontributors: the owner + specialists\n---\n\n# %s\n\n> Written by check-digest from each session'"'"'s transcript and commits — the objective record. Append-only.\n' "$DATE" "$DATE" > "$JOURNAL"
+fi
+printf '\n## session %s — %s (%s user turns)\n\n%s\n' "$ID" "$ROLE" "$TURNS" "$(printf '%s' "$J" | sed -e 's/[[:space:]]*$//')" >> "$JOURNAL"
+if [ -n "$P" ] && ! printf '%s' "$P" | grep -qix 'none'; then
+  PF="$ROOT/_ops/inbox/proposals.$ROLE.md"
+  [ -f "$PF" ] || printf '# proposals for %s — objective, unaccepted\n\nWritten by check-digest from the record. You are shown this at boot: accept what is true into your lane, in your own words, or drop it. The hook deletes this file on delivery; the journal keeps the record.\n' "$ROLE" > "$PF"
+  printf '\n### from session %s (%s)\n%s\n' "$ID" "$DATE" "$(printf '%s' "$P" | sed -e 's/[[:space:]]*$//')" >> "$PF"
+fi
+printf '# LAST — %s\n\n_session %s, %s. Overwritten by check-digest after every session; not a memory._\n\n%s\n' "$ROLE" "$ID" "$DATE" "$(printf '%s' "$L" | sed -e 's/[[:space:]]*$//')" > "$ROOT/.claude/agent-memory/$ROLE/LAST.md"
+led pass "$ID" "$ROLE $TURNS turns -> journal, $( [ -n "$P" ] && ! printf '%s' "$P" | grep -qix none && echo proposals, )LAST"
+echo "check-digest: $ID ($ROLE, $TURNS turns) -> $JOURNAL, $( [ -n "$P" ] && ! printf '%s' "$P" | grep -qix none && echo "_ops/inbox/proposals.$ROLE.md, ").claude/agent-memory/$ROLE/LAST.md"
+exit 0

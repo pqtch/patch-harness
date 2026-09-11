@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# check-sessions — "when did we work on X?" Greps the tracked session transcripts for a term in
+# USER or ASSISTANT text (never tool output), and prints one line per session that mentions
+# it: date, specialist (from the session->specialist sidecar, or '-' before it existed), turn count,
+# session id, and the first matching user line. Newest first.
+# Usage: check-sessions <regex> [-n N]
+set -u
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+[ $# -ge 1 ] || { echo "usage: check-sessions <regex> [-n N]" >&2; exit 2; }
+Q="$1"; N=20; [ "${2:-}" = "-n" ] && N="${3:-20}"
+T="$ROOT/.claude-config/projects"; SIDE="$ROOT/.claude-config/session-specialists.tsv"
+command -v jq >/dev/null || { echo "check-sessions: jq required" >&2; exit 2; }
+for f in $(ls -t "$T"/*/*.jsonl 2>/dev/null); do
+  id="$(basename "$f" .jsonl)"
+  hit="$(jq -r 'select(.type=="user" or .type=="assistant") | .message.content | if type=="string" then . else (.[]? | select(.type=="text") | .text) end' "$f" 2>/dev/null | grep -m1 -iE -- "$Q")" || continue
+  [ -n "$hit" ] || continue
+  ts="$(jq -r 'select(.timestamp) | .timestamp' "$f" 2>/dev/null | head -1 | cut -c1-16)"
+  turns="$(jq -r 'select(.type=="user") | .message.content | if type=="string" then 1 else ([.[]?|select(.type=="text")]|length) end' "$f" 2>/dev/null | awk '$1>0' | wc -l)"
+  specialist="$( [ -f "$SIDE" ] && awk -F'\t' -v s="$id" '$1==s {print $2}' "$SIDE" | tail -1 )"; specialist="${specialist:--}"
+  printf '%s  %-10s %3s turns  %s  %s\n' "$ts" "$specialist" "$turns" "$id" "$(printf '%s' "$hit" | tr '\n' ' ' | cut -c1-90)"
+done | head -n "$N"

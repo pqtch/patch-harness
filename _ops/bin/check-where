@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# check-where — "where is the file or directory named X?" find by name, case-insensitive,
+# skipping .git, node_modules, the config dir's runtime state and nested clones.
+# Usage: check-where <name-glob>     e.g. check-where 'memory-rules*'   check-where STICKY.md
+set -u
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+[ $# -ge 1 ] || { echo "usage: check-where <name-glob>" >&2; exit 2; }
+find "$ROOT" \( -name .git -o -name node_modules -o -name '*-repo' -o -path "$ROOT/.claude-config/projects" \) -prune -o -iname "$1" -print 2>/dev/null | sed "s#^$ROOT/##" | head -50

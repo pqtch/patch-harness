@@ -71,7 +71,13 @@ real capability shaping and a persona is not. (A session's roster also shows Cla
 own built-in agent types; those are the harness's, not this tree's.) `~/workspace/.claude/agents/README.md`.
 
 ### Memory
-Four types, a closed vocabulary — `identity` · `feedback` · `project` · `reference` — one per
+Two sides. **Subjective** memory is the specialist's, written in session with the context.
+**Objective** memory is written by a process with only the record — `check-digest`, from the
+transcript and the session's commits — and it never lands in a lane: a journal section, a
+six-line brief of the last session injected at the next boot, and proposals with their
+evidence quoted, which the specialist files or drops. That split is what keeps lanes small.
+
+Four types on the subjective side, a closed vocabulary — `identity` · `feedback` · `project` · `reference` — one per
 file, checked by `check-types`. The index is resident; everything else loads when a trigger in
 the index reaches for it, which is how depth is controlled without a rule. A lane's path comes
 from the def's `memory: user` line, which Claude Code resolves to `<config dir>/agent-memory/<name>/`;

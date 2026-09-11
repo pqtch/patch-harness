@@ -6,10 +6,10 @@ source of truth about a project — the project owns that.
 ## Index
 | Path | Description |
 |---|---|
-| `~/workspace/_ops/bin/` | `ws` (the launcher), `setup.sh`, the three checks, and `check-selftest` — plants every guard's failure; run at wrap |
+| `~/workspace/_ops/bin/` | `ws` (the launcher), `setup.sh`, the three checks, `check-selftest`, `check-digest` (the objective memory process), and the recall family `check-recall` / `check-sessions` / `check-where` / `check-rows` (`.claude/rules/recall.md`) |
 | `~/workspace/_ops/scripts/` | one-job scripts, run by hand or by a hook <!-- may-be-absent --> |
 | `~/workspace/_ops/docs/` | design records — the *why* behind YOUR structural decisions (the boilerplate's own are at `~/workspace/docs/`) |
-| `~/workspace/_ops/journal/` | one dated record per day, append-only |
+| `~/workspace/_ops/journal/` | one dated record per day, one section per session, append-only, written by `check-digest` |
 | `~/workspace/_ops/plans/` | LIVE plans only |
 | `~/workspace/_ops/inbox/` | accepted-but-unfiled durable lessons; staging, never a destination |
 | `~/workspace/_ops/archive/` | dead plans, retired docs, closed sketches, superseded anything |
@@ -26,8 +26,9 @@ Archive, do not delete. The record of having been wrong is the useful part.
 ## Journal is a record, not a status surface
 Nobody reads `journal/` to find out what is live; that is what a project's `CLAUDE.md` and
 `.claude/STICKY.md` are for. The journal answers *when did we…* and *why is it like this.*
-One entry per day (`<YYYY-MM-DD>.md`). Entries are never edited after the fact — a
-correction is a new entry.
+One entry per day (`<YYYY-MM-DD>.md`), one section per session, written by `check-digest` at
+`SessionEnd` and at `/wrap`. Entries are never edited after the fact — a correction is a new
+entry.
 
 ## The scripts convention
 Any script here carries its findings **with it**:

@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# check-rows — "which index points at X?" Every table row in every CLAUDE.md / INDEX.md /
+# MEMORY.md that matches, as index-file:line. Indices are the navigation surface, so this is
+# "where does the workspace itself say X lives" — narrower and more trusted than check-recall.
+# Usage: check-rows <regex>
+set -u
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+[ $# -ge 1 ] || { echo "usage: check-rows <regex>" >&2; exit 2; }
+cd "$ROOT"
+find . \( -name .git -o -name node_modules -o -name '*-repo' \) -prune -o \( -name CLAUDE.md -o -name INDEX.md -o -name MEMORY.md \) -print 2>/dev/null \
+  | xargs grep -niE -- "^\|.*$1" 2>/dev/null | sed 's#^\./##' | head -50

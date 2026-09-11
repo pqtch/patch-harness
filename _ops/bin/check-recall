@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# check-recall — "do we already know about X?" One grep over every KNOWLEDGE surface:
+# memory lanes, the inbox, the journal, notes with frontmatter, and USER.md. Prints file:line.
+# Not transcripts (that is check-sessions) and not code. Case-insensitive, extended regex.
+# Usage: check-recall <regex> [-n N]   (N = max lines, default 40)
+set -u
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+[ $# -ge 1 ] || { echo "usage: check-recall <regex> [-n N]" >&2; exit 2; }
+Q="$1"; N=40; [ "${2:-}" = "-n" ] && N="${3:-40}"
+cd "$ROOT"
+grep -rniE --include='*.md' -- "$Q" .claude/agent-memory _ops/inbox _ops/journal .claude/USER.md _ops/docs sketch projects 2>/dev/null \
+  | grep -v -- '-repo/' | sed "s#^\./##" | head -n "$N"

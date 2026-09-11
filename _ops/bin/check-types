@@ -33,7 +33,7 @@ main() {
 
   # ── vocabulary A: memory lanes ──────────────────────────────────────────────
   while IFS= read -r f; do
-    case "$f" in */MEMORY.md|*/README.md) continue;; esac  # indexes and docs are not memories
+    case "$f" in */MEMORY.md|*/README.md|*/LAST.md) continue;; esac  # indexes, docs and the LAST brief are not memories
     t="$(sed -n 's/^type: *//p' "$f" | head -1)"
     # Diagnose the harness format specifically. Claude Code injects its own memory-writing
     # instructions specifying `metadata:` with a nested `type:` — and naming the first type
