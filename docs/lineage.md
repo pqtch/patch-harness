@@ -1,7 +1,7 @@
 # Lineage
 
 ## v1.0 — the ICM starter kit
-The first version of this repository (tag-less; inspectable at commit `61f91eb`) was a
+The first version of this repository (tag-less; inspectable at commit `bd93e08`) was a
 public starter kit built on the **Interpretable Context Methodology** (ICM),
 https://arxiv.org/abs/2603.16021 — a PARA-shaped workspace with a shared memory file, a
 health check, an `rm` guard, nine skills, and a setup interview that personalized the tree.
